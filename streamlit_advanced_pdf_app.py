@@ -24,7 +24,7 @@ FONT_PATH = "Cairo-Regular.ttf"
 pdfmetrics.registerFont(TTFont("Cairo", FONT_PATH))
 
 # إعداد Google Drive
-FOLDER_ID = "1TUZ_DMdU3e1LDk1CIQOUk-IkI1r1pxN"
+FOLDER_ID = "1D5gu4vO_YLjVHObfaRZc_XJEIPhlc_k4"
 service_info = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT"])
 creds = service_account.Credentials.from_service_account_info(
     service_info,
@@ -38,11 +38,10 @@ gc = gspread.service_account_from_dict(service_info)
 sheet = gc.open_by_key(SHEET_ID).worksheet("PDF Tracking Log")
 
 def upload_and_share(filename, filepath, email):
-    file_metadata = {"name": filename}
+    file_metadata = {"name": filename, "parents": [FOLDER_ID]}
     media = MediaFileUpload(filepath, mimetype="application/pdf")
     uploaded_file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
     file_id = uploaded_file.get("id")
-    drive_service.files().update(fileId=file_id, addParents=FOLDER_ID).execute()
     drive_service.permissions().create(
         fileId=file_id,
         body={
