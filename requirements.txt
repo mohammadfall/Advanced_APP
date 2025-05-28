@@ -8,3 +8,5 @@ google-auth-oauthlib
 gspread
 openpyxl
 qrcode[pil]
+arabic-reshaper
+python-bidi
