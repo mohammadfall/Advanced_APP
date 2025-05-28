@@ -165,42 +165,31 @@ def process_students(base_pdf, students, mode):
                 reader = PdfReader(base_temp.name)
                 writer = PdfWriter()
 
-                drive_link = ""
+                drive_link = "https://pdf.alomari.com/placeholder"
                 if mode == "Drive":
-                    watermark_page = create_watermark_page(name, "https://placeholder")
-                    for page in reader.pages:
-                        page.merge_page(watermark_page)
-                        writer.add_page(page)
-                    with open(raw_path, "wb") as f_out:
-                        writer.write(f_out)
-                    drive_link = upload_and_share(f"{name}.pdf", protected_path, email)
-                    watermark_page = create_watermark_page(name, drive_link)
-                    reader = PdfReader(base_temp.name)
-                    writer = PdfWriter()
-                    for page in reader.pages:
-                        page.merge_page(watermark_page)
-                        writer.add_page(page)
-                    with open(raw_path, "wb") as f_out:
-                        writer.write(f_out)
-                else:
-                    drive_link = "https://pdf.alomari.com/placeholder"
-                    watermark_page = create_watermark_page(name, drive_link)
-                    for page in reader.pages:
-                        page.merge_page(watermark_page)
-                        writer.add_page(page)
-                    with open(raw_path, "wb") as f_out:
-                        writer.write(f_out)
+                    drive_link = "https://placeholder"
+
+                watermark_page = create_watermark_page(name, drive_link)
+                for page in reader.pages:
+                    page.merge_page(watermark_page)
+                    writer.add_page(page)
+
+                with open(raw_path, "wb") as f_out:
+                    writer.write(f_out)
 
                 apply_pdf_protection(raw_path, protected_path, password)
 
                 if mode == "Drive":
+                    drive_link = upload_and_share(f"{name}.pdf", protected_path, email)
                     send_email_to_student(name, email, password, drive_link)
                     send_telegram_message(f"📥 ملف جديد تم إنشاؤه:\n👤 الاسم: {name}\n🔑 الباسورد: {password}\n📎 الرابط: {drive_link}")
 
                 writer_csv.writerow([name, email, password, drive_link])
                 sheet.append_row([name, email, password, drive_link, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
                 pdf_paths.append(protected_path)
+
     return pdf_paths, password_file_path, temp_dir
+
 
 pdf_file = st.file_uploader("📄 تحميل ملف PDF الأساسي", type=["pdf"])
 input_method = st.radio("📋 إدخال الأسماء:", ["📁 رفع ملف Excel (A: الاسم، B: الإيميل)", "✍️ إدخال يدوي"])
