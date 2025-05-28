@@ -61,12 +61,16 @@ sheet = gc.open_by_key(SHEET_ID).worksheet("PDF Tracking Log")
 
 
 def upload_and_share(filename, filepath, email):
-    file_metadata = {"name": filename, "parents": [FOLDER_ID]}
+    # الخطوة 1: رفع الملف بدون مجلد
+    file_metadata = {"name": filename}
     media = MediaFileUpload(filepath, mimetype="application/pdf")
     uploaded_file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
     file_id = uploaded_file.get("id")
 
-    # مشاركة الملف مع الطالب ومنع التنزيل
+    # الخطوة 2: نقل الملف إلى المجلد بعد رفعه
+    drive_service.files().update(fileId=file_id, addParents=FOLDER_ID).execute()
+
+    # الخطوة 3: مشاركة الملف مع الطالب ومنع التنزيل
     drive_service.permissions().create(
         fileId=file_id,
         body={
@@ -87,6 +91,7 @@ def upload_and_share(filename, filepath, email):
     ).execute()
 
     return f"https://drive.google.com/file/d/{file_id}/view"
+
 
 def create_watermark_page(text, font_size=20, spacing=200, rotation=35, alpha=0.12):
     packet = BytesIO()
