@@ -21,6 +21,8 @@ import gspread
 from datetime import datetime
 import qrcode
 from reportlab.lib.utils import ImageReader
+import arabic_reshaper
+from bidi.algorithm import get_display
 
 # إعداد الصفحة
 st.set_page_config(page_title="🔐 Alomari PDF Protector", layout="wide")
@@ -111,11 +113,14 @@ def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, al
             c.saveState()
             c.translate(x, y)
             c.rotate(rotation)
-            c.drawString(0, 0, f"For ـ {name}")
+            c.drawString(0, 0, f"خاص بـ ـ {name}")
             c.restoreState()
     c.setFillAlpha(1)
     c.setFont("Cairo", 8)
-    c.drawString(30, 30, " هذا الملف لا يجوز تداوله أو طباعته إلا بإذن مسبق")
+    legal_text = "📜 هذا الملف محمي بموجب حقوق النشر ولا يجوز تداوله أو طباعته إلا بإذن خطي"
+reshaped_text = arabic_reshaper.reshape(legal_text)
+bidi_text = get_display(reshaped_text)
+c.drawString(30, 30, bidi_text)
     qr_img = generate_qr_code(link)
     c.drawImage(qr_img, width - 80, 15, width=50, height=50)
     c.save()
