@@ -115,9 +115,9 @@ def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, al
             c.restoreState()
     c.setFillAlpha(1)
     c.setFont("Cairo", 8)
-    c.drawString(30, 30, "📜 هذا الملف محمي بموجب حقوق النشر ولا يجوز تداوله أو طباعته إلا بإذن خطي")
+    c.drawString(30, 30, " هذا الملف لا يجوز تداوله أو طباعته إلا بإذن مسبق")
     qr_img = generate_qr_code(link)
-    c.drawImage(qr_img, width - 100, 20, width=70, height=70)
+    c.drawImage(qr_img, width - 80, 15, width=50, height=50)
     c.save()
     packet.seek(0)
     return PdfReader(packet).pages[0]
