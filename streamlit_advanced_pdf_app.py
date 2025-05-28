@@ -51,22 +51,22 @@ def upload_and_share(filename, filepath, email):
     media = MediaFileUpload(filepath, mimetype="application/pdf")
     uploaded_file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
     file_id = uploaded_file.get("id")
+    link = f"https://drive.google.com/file/d/{file_id}/view"
 
-    # مشاركة فقط إذا كان الإيميل صالح
     if email and re.match(r"[^@]+@[^@]+\.[^@]+", email):
         try:
             drive_service.permissions().create(
                 fileId=file_id,
                 body={"type": "user", "role": "reader", "emailAddress": email.strip()},
-                fields='id', sendNotificationEmail=True).execute()
+                fields='id', sendNotificationEmail=True  # ✅ الإرسال مفعّل الآن
+            ).execute()
             drive_service.files().update(
                 fileId=file_id,
                 body={"copyRequiresWriterPermission": True, "viewersCanCopyContent": False}).execute()
         except Exception as e:
             st.warning(f"📛 مشاركة فشلت مع {email}: {e}")
             return ""
-        return f"https://drive.google.com/file/d/{file_id}/view"
-    return ""
+    return link
 
 # ✅ إنشاء علامة مائية
 def create_watermark_page(text, font_size=20, spacing=200, rotation=35, alpha=0.12):
