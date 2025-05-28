@@ -1,4 +1,3 @@
-
 import streamlit as st
 import tempfile
 import os
@@ -19,7 +18,6 @@ from googleapiclient.http import MediaFileUpload
 import gspread
 from datetime import datetime
 
-
 # إعداد الخط
 FONT_PATH = "Cairo-Regular.ttf"
 pdfmetrics.registerFont(TTFont("Cairo", FONT_PATH))
@@ -34,9 +32,6 @@ creds = service_account.Credentials.from_service_account_info(
 drive_service = build("drive", "v3", credentials=creds)
 
 # ربط Google Sheets
-import gspread
-from datetime import datetime
-
 SHEET_ID = "1o_bx5KszHuU1ur-vYF7AdLH8ypvUmm7HXmxMOTzbhXg"
 gc = gspread.service_account_from_dict(service_info)
 sheet = gc.open_by_key(SHEET_ID).sheet1
@@ -132,16 +127,16 @@ def process_students(base_pdf, students, mode):
             if mode == "Drive":
                 drive_link = upload_and_share(f"{name}.pdf", protected_path, email)
 
-writer_csv.writerow([name, email, password, drive_link])
+            writer_csv.writerow([name, email, password, drive_link])
 
-# سجل إلى Google Sheet
-sheet.append_row([
-    name,
-    email,
-    password,
-    drive_link,
-    datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-])
+            sheet.append_row([
+                name,
+                email,
+                password,
+                drive_link,
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            ])
+
             pdf_paths.append(protected_path)
 
     return pdf_paths, password_file_path, temp_dir
@@ -167,7 +162,7 @@ else:
             if len(parts) == 2:
                 students.append(parts)
 
-option = st.radio("اختيار طريقة الإخراج:", ["📦 تحميل ZIP", "☁️ رفع إلى Google Drive + مشاركة تلقائية"])
+option = st.radio("اختيار طريقة الإخراج:", ["📆 تحميل ZIP", "☁️ رفع إلى Google Drive + مشاركة تلقائية"])
 
 if pdf_file and students:
     if st.button("🚀 بدء العملية"):
@@ -182,7 +177,7 @@ if pdf_file and students:
                         zipf.write(file_path, arcname=os.path.basename(file_path))
                     zipf.write(password_file_path, arcname="passwords_and_links.csv")
                 with open(zip_path, "rb") as f:
-                    st.download_button("📦 تحميل ZIP مع كلمات السر والروابط", f.read(), file_name="students_files.zip")
+                    st.download_button("📆 تحميل ZIP مع كلمات السر والروابط", f.read(), file_name="students_files.zip")
             else:
                 with open(password_file_path, "rb") as f:
                     st.download_button("📄 تحميل ملف كلمات السر والروابط", f.read(), file_name="passwords_and_links.csv")

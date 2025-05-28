@@ -1,0 +1,8 @@
+streamlit
+PyPDF2
+reportlab
+pandas
+google-auth
+google-api-python-client
+google-auth-oauthlib
+gspread
