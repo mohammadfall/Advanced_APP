@@ -173,7 +173,7 @@ def process_students(base_pdf, students, mode):
                         writer.add_page(page)
                     with open(raw_path, "wb") as f_out:
                         writer.write(f_out)
-                    drive_link = upload_and_share(f"{name}.pdf", raw_path, email)
+                    drive_link = upload_and_share(f"{name}.pdf", protected_path, email)
                     watermark_page = create_watermark_page(name, drive_link)
                     reader = PdfReader(base_temp.name)
                     writer = PdfWriter()
