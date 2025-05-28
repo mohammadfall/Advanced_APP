@@ -111,7 +111,7 @@ def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, al
             c.saveState()
             c.translate(x, y)
             c.rotate(rotation)
-            c.drawString(0, 0, f"خاص بـ {name}")
+            c.drawString(0, 0, f"For ـ {name}")
             c.restoreState()
     c.setFillAlpha(1)
     c.setFont("Cairo", 8)
