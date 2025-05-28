@@ -1,4 +1,6 @@
 import streamlit as st
+st.set_page_config(page_title="🔐 PDF Tool by Alomari")
+
 import tempfile
 import os
 import pandas as pd
@@ -7,7 +9,6 @@ from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.units import cm
 from io import BytesIO
 from zipfile import ZipFile
 import json
@@ -23,54 +24,25 @@ FONT_PATH = "Cairo-Regular.ttf"
 pdfmetrics.registerFont(TTFont("Cairo", FONT_PATH))
 
 # إعداد Google Drive
-FOLDER_ID = "1TUZ_DMdU3e1LDLklCIQOUk-IkI1r1pxN"
+FOLDER_ID = "1TUZ_DMdU3e1LDk1CIQOUk-IkI1r1pxN"
 service_info = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT"])
 creds = service_account.Credentials.from_service_account_info(
     service_info,
     scopes=["https://www.googleapis.com/auth/drive"]
 )
 drive_service = build("drive", "v3", credentials=creds)
-# اختبار رفع ملف بسيط
-from io import BytesIO
-def test_drive_upload():
-    st.write("🚀 اختبار رفع ملف بسيط...")
-    test_pdf = BytesIO()
-    test_pdf.write(b"%PDF-1.4\n%EOF\n")  # محتوى PDF بسيط
-    test_pdf.seek(0)
-
-    temp_path = os.path.join(tempfile.gettempdir(), "test_upload.pdf")
-    with open(temp_path, "wb") as f:
-        f.write(test_pdf.read())
-
-    file_metadata = {"name": "test_upload.pdf", "parents": [FOLDER_ID]}
-    media = MediaFileUpload(temp_path, mimetype="application/pdf")
-    uploaded_file = drive_service.files().create(
-        body=file_metadata, media_body=media, fields="id"
-    ).execute()
-    file_id = uploaded_file.get("id")
-    st.success(f"✅ تم الرفع بنجاح! رابط الملف: https://drive.google.com/file/d/{file_id}/view")
-
-# نفذ فقط مرة للتجريب
-if st.button("🚀 اختبار رفع Drive"):
-    test_drive_upload()
 
 # ربط Google Sheets
 SHEET_ID = "1o_bx5KszHuU1ur-vYF7AdLH8ypvUmm7HXmxMOTzbhXg"
 gc = gspread.service_account_from_dict(service_info)
 sheet = gc.open_by_key(SHEET_ID).worksheet("PDF Tracking Log")
 
-
 def upload_and_share(filename, filepath, email):
-    # الخطوة 1: رفع الملف بدون مجلد
     file_metadata = {"name": filename}
     media = MediaFileUpload(filepath, mimetype="application/pdf")
     uploaded_file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
     file_id = uploaded_file.get("id")
-
-    # الخطوة 2: نقل الملف إلى المجلد بعد رفعه
     drive_service.files().update(fileId=file_id, addParents=FOLDER_ID).execute()
-
-    # الخطوة 3: مشاركة الملف مع الطالب ومنع التنزيل
     drive_service.permissions().create(
         fileId=file_id,
         body={
@@ -81,7 +53,6 @@ def upload_and_share(filename, filepath, email):
         fields='id',
         sendNotificationEmail=True
     ).execute()
-
     drive_service.files().update(
         fileId=file_id,
         body={
@@ -89,9 +60,7 @@ def upload_and_share(filename, filepath, email):
             'viewersCanCopyContent': False
         }
     ).execute()
-
     return f"https://drive.google.com/file/d/{file_id}/view"
-
 
 def create_watermark_page(text, font_size=20, spacing=200, rotation=35, alpha=0.12):
     packet = BytesIO()
@@ -171,7 +140,6 @@ def process_students(base_pdf, students, mode):
     return pdf_paths, password_file_path, temp_dir
 
 # واجهة التطبيق
-st.set_page_config(page_title="🔐 PDF Tool by Alomari")
 st.title("🔐 إضافة علامة مائية + حماية + مشاركة Google Drive")
 pdf_file = st.file_uploader("📄 تحميل ملف PDF الأساسي", type=["pdf"])
 
