@@ -30,6 +30,29 @@ creds = service_account.Credentials.from_service_account_info(
     scopes=["https://www.googleapis.com/auth/drive"]
 )
 drive_service = build("drive", "v3", credentials=creds)
+# اختبار رفع ملف بسيط
+from io import BytesIO
+def test_drive_upload():
+    st.write("🚀 اختبار رفع ملف بسيط...")
+    test_pdf = BytesIO()
+    test_pdf.write(b"%PDF-1.4\n%EOF\n")  # محتوى PDF بسيط
+    test_pdf.seek(0)
+
+    temp_path = os.path.join(tempfile.gettempdir(), "test_upload.pdf")
+    with open(temp_path, "wb") as f:
+        f.write(test_pdf.read())
+
+    file_metadata = {"name": "test_upload.pdf", "parents": [FOLDER_ID]}
+    media = MediaFileUpload(temp_path, mimetype="application/pdf")
+    uploaded_file = drive_service.files().create(
+        body=file_metadata, media_body=media, fields="id"
+    ).execute()
+    file_id = uploaded_file.get("id")
+    st.success(f"✅ تم الرفع بنجاح! رابط الملف: https://drive.google.com/file/d/{file_id}/view")
+
+# نفذ فقط مرة للتجريب
+if st.button("🚀 اختبار رفع Drive"):
+    test_drive_upload()
 
 # ربط Google Sheets
 SHEET_ID = "1o_bx5KszHuU1ur-vYF7AdLH8ypvUmm7HXmxMOTzbhXg"
