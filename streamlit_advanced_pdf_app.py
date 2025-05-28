@@ -5,6 +5,9 @@ import os
 import pandas as pd
 import re
 import requests
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
@@ -27,23 +30,9 @@ from bidi.algorithm import get_display
 # إعداد الصفحة
 st.set_page_config(page_title="🔐 Alomari PDF Protector", layout="wide")
 
-st.markdown("""
-<style>
-    .main { background-color: #f9f9f9; }
-    h1, h2, h3 { color: #2c3e50; }
-</style>
-""", unsafe_allow_html=True)
-
 st.title("🔐 نظام الحماية الذكي - د. محمد العمري")
-st.markdown("**نظام مخصص لحماية ملفات PDF للطلاب ومشاركتها بشكل آمن واحترافي عبر البريد وTelegram.**")
 
-with st.sidebar:
-    st.image("https://i.imgur.com/wsTOuZZ.png", width=180)
-    st.markdown("---")
-    st.success("مرحبًا بك في لوحة الحماية 👋")
-    st.markdown("*يرجى التأكد من إدخال البيانات بدقة قبل بدء المعالجة.*")
-
-# ✅ التحقق من رمز الدخول
+# التحقق من الدخول
 ACCESS_KEY = st.secrets["ACCESS_KEY"]
 code = st.text_input("🔑 أدخل رمز الدخول:", type="password")
 if code != ACCESS_KEY:
@@ -54,11 +43,13 @@ if code != ACCESS_KEY:
 FONT_PATH = "Cairo-Regular.ttf"
 pdfmetrics.registerFont(TTFont("Cairo", FONT_PATH))
 
-# Google Drive & Sheets
+# إعدادات API وخدمات جوجل
 FOLDER_ID = st.secrets["FOLDER_ID"]
 SHEET_ID = st.secrets["SHEET_ID"]
 TELEGRAM_BOT_TOKEN = st.secrets["TELEGRAM_BOT_TOKEN"]
 TELEGRAM_CHAT_ID = st.secrets["TELEGRAM_CHAT_ID"]
+EMAIL_SENDER = st.secrets["EMAIL_SENDER"]
+EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
 
 service_info = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT"])
 creds = service_account.Credentials.from_service_account_info(service_info, scopes=["https://www.googleapis.com/auth/drive"])
@@ -73,6 +64,27 @@ def send_telegram_message(message):
         requests.post(url, data=data)
     except Exception as e:
         st.warning(f"📛 فشل إرسال تيليجرام: {e}")
+
+def send_email_to_student(name, email, password, link):
+    try:
+        msg = MIMEMultipart()
+        msg["From"] = EMAIL_SENDER
+        msg["To"] = email
+        msg["Subject"] = "🔐 ملفك من فريق د. محمد العمري"
+        body = f"""مرحبًا {name},
+
+📎 رابط الملف: {link}
+🔑 كلمة المرور: {password}
+
+⚠️ الملف خاص بك فقط. لا تشاركه مع الآخرين.
+"""
+        msg.attach(MIMEText(body, "plain"))
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+            server.send_message(msg)
+    except Exception as e:
+        st.warning(f"📛 فشل إرسال الإيميل إلى {email}: {e}")
 
 def generate_qr_code(link):
     qr = qrcode.make(link)
@@ -117,8 +129,7 @@ def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, al
             c.restoreState()
     c.setFillAlpha(1)
     c.setFont("Cairo", 8)
-    legal_text = "📜 هذا الملف محمي بموجب حقوق النشر ولا يجوز تداوله أو طباعته إلا بإذن خطي"
-    reshaped_text = arabic_reshaper.reshape(legal_text)
+    reshaped_text = arabic_reshaper.reshape("📜 هذا الملف محمي بموجب حقوق النشر ولا يجوز تداوله أو طباعته إلا بإذن خطي")
     bidi_text = get_display(reshaped_text)
     c.drawString(30, 30, bidi_text)
     qr_img = generate_qr_code(link)
@@ -164,7 +175,8 @@ def process_students(base_pdf, students, mode):
                 drive_link = ""
                 if mode == "Drive":
                     drive_link = upload_and_share(f"{name}.pdf", protected_path, email)
-                    send_telegram_message(f"📎 تم رفع ملف {name}\n🔗 {drive_link}")
+                    send_email_to_student(name, email, password, drive_link)
+                    send_telegram_message(f"📥 ملف جديد تم إنشاؤه:\n👤 الاسم: {name}\n🔑 الباسورد: {password}\n📎 الرابط: {drive_link}")
                 writer_csv.writerow([name, email, password, drive_link])
                 sheet.append_row([name, email, password, drive_link, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
                 pdf_paths.append(protected_path)
