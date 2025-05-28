@@ -38,7 +38,7 @@ st.title("🔐 نظام الحماية الذكي - د. محمد العمري")
 st.markdown("**نظام مخصص لحماية ملفات PDF للطلاب ومشاركتها بشكل آمن واحترافي عبر البريد وTelegram.**")
 
 with st.sidebar:
-    st.image("https://drive.google.com/uc?export=view&id=1jkLdmX5r8ldON7tzy8OFV8P2ubugpYd1", width=180)
+    st.image("https://i.imgur.com/wsTOuZZ.png", width=180)
     st.markdown("---")
     st.success("مرحبًا بك في لوحة الحماية 👋")
     st.markdown("*يرجى التأكد من إدخال البيانات بدقة قبل بدء المعالجة.*")
