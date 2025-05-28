@@ -1,4 +1,4 @@
-# ✅ Advanced PDF Tool by Dr. Alomari
+# ✅ Advanced PDF Tool by Dr. Alomari (Email + Telegram Enabled)
 import streamlit as st
 import tempfile
 import os
