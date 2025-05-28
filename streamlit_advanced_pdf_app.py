@@ -29,6 +29,7 @@ from bidi.algorithm import get_display
 
 # إعداد الصفحة
 st.set_page_config(page_title="🔐 Alomari PDF Protector", layout="wide")
+
 st.title("🔐 نظام الحماية الذكي - د. محمد العمري")
 
 # التحقق من الدخول
@@ -42,7 +43,7 @@ if code != ACCESS_KEY:
 FONT_PATH = "Cairo-Regular.ttf"
 pdfmetrics.registerFont(TTFont("Cairo", FONT_PATH))
 
-# إعدادات API
+# إعدادات API وخدمات جوجل
 FOLDER_ID = st.secrets["FOLDER_ID"]
 SHEET_ID = st.secrets["SHEET_ID"]
 TELEGRAM_BOT_TOKEN = st.secrets["TELEGRAM_BOT_TOKEN"]
@@ -128,7 +129,7 @@ def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, al
             c.restoreState()
     c.setFillAlpha(1)
     c.setFont("Cairo", 8)
-    reshaped_text = arabic_reshaper.reshape(" هذا الملف محمي ولا يجوز تداوله او طباعته إلا باذن خطي")
+    reshaped_text = arabic_reshaper.reshape(" هذا الملف محمي ولا يجوز تداوله او طباعته إلا باذم خطي")
     bidi_text = get_display(reshaped_text)
     c.drawString(30, 30, bidi_text)
     qr_img = generate_qr_code(link)
@@ -164,35 +165,27 @@ def process_students(base_pdf, students, mode):
                 password = name.replace(" ", "") + "@alomari"
                 reader = PdfReader(base_temp.name)
                 writer = PdfWriter()
-
+                
+                # ✅ توليد رابط درايف (أولًا)
                 drive_link = ""
                 if mode == "Drive":
-                    watermark_page = create_watermark_page(name, "https://placeholder")
-                    for page in reader.pages:
-                        page.merge_page(watermark_page)
-                        writer.add_page(page)
-                    with open(raw_path, "wb") as f_out:
-                        writer.write(f_out)
-                    drive_link = upload_and_share(f"{name}.pdf", raw_path, email)
-                    watermark_page = create_watermark_page(name, drive_link)
-                    reader = PdfReader(base_temp.name)
-                    writer = PdfWriter()
-                    for page in reader.pages:
-                        page.merge_page(watermark_page)
-                        writer.add_page(page)
-                    with open(raw_path, "wb") as f_out:
-                        writer.write(f_out)
+                    drive_link = upload_and_share(f"{name}.pdf", protected_path, email)
                 else:
-                    drive_link = "https://pdf.alomari.com/placeholder"
-                    watermark_page = create_watermark_page(name, drive_link)
-                    for page in reader.pages:
-                        page.merge_page(watermark_page)
-                        writer.add_page(page)
-                    with open(raw_path, "wb") as f_out:
-                        writer.write(f_out)
+                    drive_link = "https://pdf.alomari.com/placeholder"  # رابط بديل في وضع ZIP
 
+                # ✅ توليد QR مخصص للرابط الفعلي
+                watermark_page = create_watermark_page(name, drive_link)
+
+                for page in reader.pages:
+                    page.merge_page(watermark_page)
+                    writer.add_page(page)
+                with open(raw_path, "wb") as f_out:
+                    writer.write(f_out)
+
+                # ✅ حماية PDF
                 apply_pdf_protection(raw_path, protected_path, password)
 
+                # ✅ إرسال فقط في حالة Drive
                 if mode == "Drive":
                     send_email_to_student(name, email, password, drive_link)
                     send_telegram_message(f"📥 ملف جديد تم إنشاؤه:\n👤 الاسم: {name}\n🔑 الباسورد: {password}\n📎 الرابط: {drive_link}")
@@ -202,6 +195,7 @@ def process_students(base_pdf, students, mode):
                 pdf_paths.append(protected_path)
     return pdf_paths, password_file_path, temp_dir
 
+# 🧾 إدخال المستخدم والواجهة
 pdf_file = st.file_uploader("📄 تحميل ملف PDF الأساسي", type=["pdf"])
 input_method = st.radio("📋 إدخال الأسماء:", ["📁 رفع ملف Excel (A: الاسم، B: الإيميل)", "✍️ إدخال يدوي"])
 
