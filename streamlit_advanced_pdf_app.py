@@ -34,7 +34,12 @@ drive_service = build("drive", "v3", credentials=creds)
 # ربط Google Sheets
 SHEET_ID = "1o_bx5KszHuU1ur-vYF7AdLH8ypvUmm7HXmxMOTzbhXg"
 gc = gspread.service_account_from_dict(service_info)
-sheet = gc.open_by_key(SHEET_ID).sheet1
+try:
+    sheet_file = gc.open_by_key(SHEET_ID)
+    st.success("✅ الاتصال بـ Google Sheet تم بنجاح!")
+    st.write("📄 الأوراق المتوفرة:", [ws.title for ws in sheet_file.worksheets()])
+except Exception as e:
+    st.error(f"❌ فشل الاتصال: {e}")
 
 def upload_and_share(filename, filepath, email):
     file_metadata = {"name": filename, "parents": [FOLDER_ID]}
