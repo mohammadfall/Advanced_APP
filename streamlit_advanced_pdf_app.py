@@ -129,7 +129,7 @@ def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, al
             c.restoreState()
     c.setFillAlpha(1)
     c.setFont("Cairo", 8)
-    reshaped_text = arabic_reshaper.reshape("📜 هذا الملف محمي بموجب حقوق النشر ولا يجوز تداوله أو طباعته إلا بإذن خطي")
+    reshaped_text = arabic_reshaper.reshape(" هذا الملف محمي ولا يجوز تداوله او طباعته إلا باذم خطي")
     bidi_text = get_display(reshaped_text)
     c.drawString(30, 30, bidi_text)
     qr_img = generate_qr_code(link)
