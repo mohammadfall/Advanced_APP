@@ -165,18 +165,31 @@ def process_students(base_pdf, students, mode):
                 password = name.replace(" ", "") + "@alomari"
                 reader = PdfReader(base_temp.name)
                 writer = PdfWriter()
-                watermark_page = create_watermark_page(name, "https://drive.google.com")
+                
+                # ✅ توليد رابط درايف (أولًا)
+                drive_link = ""
+                if mode == "Drive":
+                    drive_link = upload_and_share(f"{name}.pdf", protected_path, email)
+                else:
+                    drive_link = "https://pdf.alomari.com/placeholder"  # رابط بديل في وضع ZIP
+
+                # ✅ توليد QR مخصص للرابط الفعلي
+                watermark_page = create_watermark_page(name, drive_link)
+
                 for page in reader.pages:
                     page.merge_page(watermark_page)
                     writer.add_page(page)
                 with open(raw_path, "wb") as f_out:
                     writer.write(f_out)
+
+                # ✅ حماية PDF
                 apply_pdf_protection(raw_path, protected_path, password)
-                drive_link = ""
+
+                # ✅ إرسال فقط في حالة Drive
                 if mode == "Drive":
-                    drive_link = upload_and_share(f"{name}.pdf", protected_path, email)
                     send_email_to_student(name, email, password, drive_link)
                     send_telegram_message(f"📥 ملف جديد تم إنشاؤه:\n👤 الاسم: {name}\n🔑 الباسورد: {password}\n📎 الرابط: {drive_link}")
+
                 writer_csv.writerow([name, email, password, drive_link])
                 sheet.append_row([name, email, password, drive_link, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
                 pdf_paths.append(protected_path)
