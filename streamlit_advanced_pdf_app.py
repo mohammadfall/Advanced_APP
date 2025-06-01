@@ -92,7 +92,7 @@ def generate_qr_code(link):
     output.seek(0)
     return ImageReader(output)
 
-def upload_and_share(filename, filepath, email):
+def upload_and_share(filename, filepath, email, allow_download):
     file_metadata = {"name": filename, "parents": [FOLDER_ID]}
     media = MediaFileUpload(filepath, mimetype="application/pdf")
     uploaded_file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
@@ -107,7 +107,10 @@ def upload_and_share(filename, filepath, email):
             ).execute()
             drive_service.files().update(
                 fileId=file_id,
-                body={"copyRequiresWriterPermission": True, "viewersCanCopyContent": False}).execute()
+                body={
+                    "copyRequiresWriterPermission": True,
+                    "viewersCanCopyContent": allow_download
+                }).execute()
         except Exception as e:
             st.warning(f"📛 مشاركة فشلت مع {email}: {e}")
             return ""
@@ -146,7 +149,7 @@ def apply_pdf_protection(input_path, output_path, password):
     with open(output_path, "wb") as f:
         writer.write(f)
 
-def process_students(base_pdf, students, mode):
+def process_students(base_pdf, students, mode, allow_download):
     base_temp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     base_temp.write(base_pdf.read())
     base_temp.close()
@@ -180,7 +183,7 @@ def process_students(base_pdf, students, mode):
                 apply_pdf_protection(raw_path, protected_path, password)
 
                 if mode == "Drive":
-                    drive_link = upload_and_share(f"{name}.pdf", protected_path, email)
+                    drive_link = upload_and_share(f"{name}.pdf", protected_path, email, allow_download)
                     send_email_to_student(name, email, password, drive_link)
                     send_telegram_message(f"📥 ملف جديد تم إنشاؤه:\n👤 الاسم: {name}\n🔑 الباسورد: {password}\n📎 الرابط: {drive_link}")
 
@@ -189,7 +192,6 @@ def process_students(base_pdf, students, mode):
                 pdf_paths.append(protected_path)
 
     return pdf_paths, password_file_path, temp_dir
-
 
 pdf_file = st.file_uploader("📄 تحميل ملف PDF الأساسي", type=["pdf"])
 input_method = st.radio("📋 إدخال الأسماء:", ["📁 رفع ملف Excel (A: الاسم، B: الإيميل)", "✍️ إدخال يدوي"])
@@ -210,6 +212,9 @@ else:
 
 option = st.radio("اختيار طريقة الإخراج:", ["📦 تحميل ZIP", "☁️ رفع إلى Google Drive + مشاركة تلقائية"])
 
+# ✅ الخيار الجديد
+allow_download = st.checkbox("✅ السماح بتنزيل الملف من Google Drive", value=False)
+
 if students:
     st.markdown("---")
     st.subheader("👁️‍🗨️ معاينة البيانات")
@@ -221,7 +226,7 @@ if pdf_file and students:
     if st.button("🚀 بدء العملية"):
         with st.spinner("⏳ جاري تنفيذ العملية..."):
             mode = "Drive" if option.startswith("☁️") else "ZIP"
-            pdf_paths, password_file_path, temp_dir = process_students(pdf_file, students, mode)
+            pdf_paths, password_file_path, temp_dir = process_students(pdf_file, students, mode, allow_download)
             if mode == "ZIP":
                 zip_path = os.path.join(temp_dir, "protected_students.zip")
                 with ZipFile(zip_path, "w") as zipf:
