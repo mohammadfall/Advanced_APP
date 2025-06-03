@@ -133,7 +133,7 @@ def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, al
             c.restoreState()
     c.setFillAlpha(1)
     c.setFont("Cairo", 8)
-    reshaped_text = arabic_reshaper.reshape(" هذا الملف لا يجوز تداوله او طباعته إلا باذن مسبق")
+    reshaped_text = arabic_reshaper.reshape(" هذا الملف محمي ولا يجوز تداوله او طباعته إلا باذن خطي")
     bidi_text = get_display(reshaped_text)
     c.drawString(30, 30, bidi_text)
     qr_img = generate_qr_code(link)
@@ -151,7 +151,7 @@ def apply_pdf_protection(input_path, output_path, password):
     with open(output_path, "wb") as f:
         writer.write(f)
 
-def process_students(uploaded_files, students, mode, allow_download):
+def process_students(file_copies, students, mode, allow_download):
     temp_dir = tempfile.mkdtemp()
     password_file_path = os.path.join(temp_dir, "passwords_and_links.csv")
     pdf_paths = []
@@ -166,12 +166,12 @@ def process_students(uploaded_files, students, mode, allow_download):
                 password = name.replace(" ", "") + "@alomari"
                 student_links = []
 
-                for file in uploaded_files:
+                for file_name, file_bytes in file_copies:
                     temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-                    temp_input.write(file.read())
+                    temp_input.write(file_bytes)
                     temp_input.close()
 
-                    base_filename = os.path.splitext(file.name)[0]
+                    base_filename = os.path.splitext(file_name)[0]
                     raw_path = os.path.join(temp_dir, f"{safe_name}_{base_filename}_raw.pdf")
                     protected_path = os.path.join(temp_dir, f"{safe_name}_{base_filename}.pdf")
 
@@ -243,7 +243,13 @@ if uploaded_files and students:
     if st.button("🚀 بدء العملية"):
         with st.spinner("⏳ جاري تنفيذ العملية..."):
             mode = "Drive" if option.startswith("☁️") else "ZIP"
-            pdf_paths, password_file_path, temp_dir = process_students(uploaded_files, students, mode, allow_download)
+            # ✅ حفظ نسخ الملفات
+            file_copies = []
+            for file in uploaded_files:
+                file_bytes = file.read()
+                file_copies.append((file.name, file_bytes))
+
+            pdf_paths, password_file_path, temp_dir = process_students(file_copies, students, mode, allow_download)
             if mode == "ZIP":
                 zip_path = os.path.join(temp_dir, "protected_students.zip")
                 with ZipFile(zip_path, "w") as zipf:
