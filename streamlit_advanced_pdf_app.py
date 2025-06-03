@@ -149,68 +149,68 @@ def apply_pdf_protection(input_path, output_path, password):
     with open(output_path, "wb") as f:
         writer.write(f)
 
-def process_students(base_pdf, students, mode, allow_download):
-    base_temp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-    base_temp.write(base_pdf.read())
-    base_temp.close()
+def process_students(uploaded_files, students, mode, allow_download):
     temp_dir = tempfile.mkdtemp()
     password_file_path = os.path.join(temp_dir, "passwords_and_links.csv")
     pdf_paths = []
+
     with open(password_file_path, mode="w", newline="", encoding="utf-8") as pw_file:
         writer_csv = csv.writer(pw_file)
-        writer_csv.writerow(["Student Name", "Email", "Password", "Drive Link"])
+        writer_csv.writerow(["Student Name", "Email", "Password", "Drive Links"])
+
         for idx, (name, email) in enumerate(students):
             with st.spinner(f"🔄 جاري المعالجة: {name} ({idx+1}/{len(students)})"):
                 safe_name = name.replace(" ", "_").replace("+", "plus")
-                raw_path = os.path.join(temp_dir, f"{safe_name}_raw.pdf")
-                protected_path = os.path.join(temp_dir, f"{safe_name}.pdf")
                 password = name.replace(" ", "") + "@alomari"
-                reader = PdfReader(base_temp.name)
-                writer = PdfWriter()
+                student_links = []
 
-                drive_link = "https://pdf.alomari.com/placeholder"
+                for file in uploaded_files:
+                    # حفظ الملف المؤقت
+                    temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+                    temp_input.write(file.read())
+                    temp_input.close()
+
+                    base_filename = os.path.splitext(file.name)[0]
+                    raw_path = os.path.join(temp_dir, f"{safe_name}_{base_filename}_raw.pdf")
+                    protected_path = os.path.join(temp_dir, f"{safe_name}_{base_filename}.pdf")
+
+                    # توليد QR + watermark
+                    drive_link = "https://pdf.alomari.com/placeholder"
+                    if mode == "Drive":
+                        drive_link = "https://placeholder"
+
+                    reader = PdfReader(temp_input.name)
+                    writer = PdfWriter()
+                    watermark_page = create_watermark_page(name, drive_link)
+
+                    for page in reader.pages:
+                        page.merge_page(watermark_page)
+                        writer.add_page(page)
+
+                    with open(raw_path, "wb") as f_out:
+                        writer.write(f_out)
+
+                    apply_pdf_protection(raw_path, protected_path, password)
+
+                    if mode == "Drive":
+                        final_name = f"{safe_name}_{base_filename}.pdf"
+                        drive_link = upload_and_share(final_name, protected_path, email, allow_download)
+                        student_links.append(drive_link)
+
+                    pdf_paths.append(protected_path)
+
+                # إرسال تيليجرام + إيميل
                 if mode == "Drive":
-                    drive_link = "https://placeholder"
+                    links_msg = "\n".join([f"{i+1}. {link}" for i, link in enumerate(student_links)])
+                    message = f"📥 الملفات الخاصة بـ {name}:\n🔑 الباسورد: {password}\n{links_msg}"
+                    send_telegram_message(message)
+                    send_email_to_student(name, email, password, links_msg)
 
-                watermark_page = create_watermark_page(name, drive_link)
-                for page in reader.pages:
-                    page.merge_page(watermark_page)
-                    writer.add_page(page)
-
-                with open(raw_path, "wb") as f_out:
-                    writer.write(f_out)
-
-                apply_pdf_protection(raw_path, protected_path, password)
-
-                if mode == "Drive":
-                    drive_link = upload_and_share(f"{name}.pdf", protected_path, email, allow_download)
-                    send_email_to_student(name, email, password, drive_link)
-                    send_telegram_message(f"📥 ملف جديد تم إنشاؤه:\n👤 الاسم: {name}\n🔑 الباسورد: {password}\n📎 الرابط: {drive_link}")
-
-                writer_csv.writerow([name, email, password, drive_link])
-                sheet.append_row([name, email, password, drive_link, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
-                pdf_paths.append(protected_path)
+                writer_csv.writerow([name, email, password, " | ".join(student_links)])
+                sheet.append_row([name, email, password, " | ".join(student_links), datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
 
     return pdf_paths, password_file_path, temp_dir
 
-pdf_file = st.file_uploader("📄 تحميل ملف PDF الأساسي", type=["pdf"])
-input_method = st.radio("📋 إدخال الأسماء:", ["📁 رفع ملف Excel (A: الاسم، B: الإيميل)", "✍️ إدخال يدوي"])
-
-students = []
-if input_method.startswith("📁"):
-    excel_file = st.file_uploader("📄 ملف Excel", type=["xlsx"])
-    if excel_file:
-        df = pd.read_excel(excel_file)
-        students = df.iloc[:, :2].dropna().values.tolist()
-else:
-    raw = st.text_area("✏️ أدخل الأسماء بهذا الشكل: الاسم | الايميل")
-    if raw:
-        for line in raw.splitlines():
-            parts = [p.strip() for p in line.split("|")]
-            if len(parts) == 2:
-                students.append(parts)
-
-option = st.radio("اختيار طريقة الإخراج:", ["📦 تحميل ZIP", "☁️ رفع إلى Google Drive + مشاركة تلقائية"])
 
 # ✅ الخيار الجديد
 allow_download = st.checkbox("✅ السماح بتنزيل الملف من Google Drive", value=False)
@@ -222,7 +222,7 @@ if students:
     st.markdown("---")
     st.subheader("📊 عدد الطلاب: " + str(len(students)))
 
-if pdf_file and students:
+if uploaded_files and students:
     if st.button("🚀 بدء العملية"):
         with st.spinner("⏳ جاري تنفيذ العملية..."):
             mode = "Drive" if option.startswith("☁️") else "ZIP"
