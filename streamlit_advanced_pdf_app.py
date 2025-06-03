@@ -72,10 +72,12 @@ def send_email_to_student(name, email, password, link):
         msg["Subject"] = "🔐 ملفك من فريق د. محمد العمري"
         body = f"""مرحبًا {name},
 
-📎 رابط الملف: {link}
+📎 روابط الملفات:
+{link}
+
 🔑 كلمة المرور: {password}
 
-⚠️ الملف خاص بك فقط. لا تشاركه مع الآخرين.
+⚠️ الملفات خاصة بك فقط. لا تشاركها مع الآخرين.
 """
         msg.attach(MIMEText(body, "plain"))
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
@@ -131,7 +133,7 @@ def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, al
             c.restoreState()
     c.setFillAlpha(1)
     c.setFont("Cairo", 8)
-    reshaped_text = arabic_reshaper.reshape(" هذا الملف محمي ولا يجوز تداوله او طباعته إلا باذن خطي")
+    reshaped_text = arabic_reshaper.reshape(" هذا الملف لا يجوز تداوله او طباعته إلا باذن مسبق")
     bidi_text = get_display(reshaped_text)
     c.drawString(30, 30, bidi_text)
     qr_img = generate_qr_code(link)
@@ -165,7 +167,6 @@ def process_students(uploaded_files, students, mode, allow_download):
                 student_links = []
 
                 for file in uploaded_files:
-                    # حفظ الملف المؤقت
                     temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
                     temp_input.write(file.read())
                     temp_input.close()
@@ -174,7 +175,6 @@ def process_students(uploaded_files, students, mode, allow_download):
                     raw_path = os.path.join(temp_dir, f"{safe_name}_{base_filename}_raw.pdf")
                     protected_path = os.path.join(temp_dir, f"{safe_name}_{base_filename}.pdf")
 
-                    # توليد QR + watermark
                     drive_link = "https://pdf.alomari.com/placeholder"
                     if mode == "Drive":
                         drive_link = "https://placeholder"
@@ -199,7 +199,6 @@ def process_students(uploaded_files, students, mode, allow_download):
 
                     pdf_paths.append(protected_path)
 
-                # إرسال تيليجرام + إيميل
                 if mode == "Drive":
                     links_msg = "\n".join([f"{i+1}. {link}" for i, link in enumerate(student_links)])
                     message = f"📥 الملفات الخاصة بـ {name}:\n🔑 الباسورد: {password}\n{links_msg}"
@@ -211,6 +210,24 @@ def process_students(uploaded_files, students, mode, allow_download):
 
     return pdf_paths, password_file_path, temp_dir
 
+uploaded_files = st.file_uploader("📄 ارفع كل ملفات المادة (PDFs)", type=["pdf"], accept_multiple_files=True)
+input_method = st.radio("📋 إدخال الأسماء:", ["📁 رفع ملف Excel (A: الاسم، B: الإيميل)", "✍️ إدخال يدوي"])
+
+students = []
+if input_method.startswith("📁"):
+    excel_file = st.file_uploader("📄 ملف Excel", type=["xlsx"])
+    if excel_file:
+        df = pd.read_excel(excel_file)
+        students = df.iloc[:, :2].dropna().values.tolist()
+else:
+    raw = st.text_area("✏️ أدخل الأسماء بهذا الشكل: الاسم | الايميل")
+    if raw:
+        for line in raw.splitlines():
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) == 2:
+                students.append(parts)
+
+option = st.radio("اختيار طريقة الإخراج:", ["📦 تحميل ZIP", "☁️ رفع إلى Google Drive + مشاركة تلقائية"])
 
 # ✅ الخيار الجديد
 allow_download = st.checkbox("✅ السماح بتنزيل الملف من Google Drive", value=False)
@@ -226,7 +243,7 @@ if uploaded_files and students:
     if st.button("🚀 بدء العملية"):
         with st.spinner("⏳ جاري تنفيذ العملية..."):
             mode = "Drive" if option.startswith("☁️") else "ZIP"
-            pdf_paths, password_file_path, temp_dir = process_students(pdf_file, students, mode, allow_download)
+            pdf_paths, password_file_path, temp_dir = process_students(uploaded_files, students, mode, allow_download)
             if mode == "ZIP":
                 zip_path = os.path.join(temp_dir, "protected_students.zip")
                 with ZipFile(zip_path, "w") as zipf:
