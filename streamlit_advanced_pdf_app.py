@@ -149,6 +149,30 @@ def apply_pdf_protection(input_path, output_path, password):
     with open(output_path, "wb") as f:
         writer.write(f)
 
+def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, alpha=0.12):
+    packet = BytesIO()
+    c = canvas.Canvas(packet, pagesize=letter)
+    c.setFont("Cairo", font_size)
+    c.setFillAlpha(alpha)
+    width, height = letter
+    for x in range(0, int(width), spacing):
+        for y in range(0, int(height), spacing):
+            c.saveState()
+            c.translate(x, y)
+            c.rotate(rotation)
+            c.drawString(0, 0, f"خاص بـ ِ {name}")
+            c.restoreState()
+    c.setFillAlpha(1)
+    c.setFont("Cairo", 8)
+    reshaped_text = arabic_reshaper.reshape(" هذا الملف محمي ولا يجوز تداوله او طباعته إلا باذن خطي")
+    bidi_text = get_display(reshaped_text)
+    c.drawString(30, 30, bidi_text)
+    qr_img = generate_qr_code(link)
+    c.drawImage(qr_img, width - 80, 15, width=50, height=50)
+    c.save()
+    packet.seek(0)
+    return PdfReader(packet).pages[0]
+
 def process_students(file_copies, students, mode, allow_download):
     temp_dir = tempfile.mkdtemp()
     password_file_path = os.path.join(temp_dir, "passwords_and_links.csv")
