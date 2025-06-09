@@ -154,7 +154,7 @@ def process_students(file_copies, students, mode, allow_download):
     password_file_path = os.path.join(temp_dir, "passwords_and_links.csv")
     pdf_paths = []
 
-    with open(password_file_path, mode="w", newline="utf-8") as pw_file:
+    with open(password_file_path, mode="w", encoding="utf-8", newline="") as pw_file:
         writer_csv = csv.writer(pw_file)
         writer_csv.writerow(["Student Name", "Email", "Password", "Drive Links"])
 
