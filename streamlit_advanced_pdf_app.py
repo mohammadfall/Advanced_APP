@@ -117,11 +117,7 @@ def upload_and_share(filename, filepath, email, allow_download):
 # ✅ Streamlit slider to control opacity
 opacity = st.slider("🔆 درجة شفافية اسم الطالب داخل الملف", min_value=0.05, max_value=1.0, value=0.5, step=0.05)
 
-message = f"📅 الملفات الخاصة بـ {name}:
-🔑 الباسورد: {password}
-{links_msg}"
-🔑 الباسورد: {password}
-{links_msg}"
+message = f"📅 الملفات الخاصة بـ {name}:\n🔑 الباسورد: {password}\n{links_msg}"
 
 def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, alpha=0.12):
     packet = BytesIO()
