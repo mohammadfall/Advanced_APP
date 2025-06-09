@@ -140,7 +140,6 @@ def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, al
     c.save()
     packet.seek(0)
     return PdfReader(packet).pages[0]
-
 def apply_pdf_protection(input_path, output_path, password):
     reader = PdfReader(input_path)
     writer = PdfWriter()
@@ -155,7 +154,7 @@ def process_students(file_copies, students, mode, allow_download):
     password_file_path = os.path.join(temp_dir, "passwords_and_links.csv")
     pdf_paths = []
 
-    with open(password_file_path, mode="w", newline="", encoding="utf-8") as pw_file:
+    with open(password_file_path, mode="w", newline="utf-8") as pw_file:
         writer_csv = csv.writer(pw_file)
         writer_csv.writerow(["Student Name", "Email", "Password", "Drive Links"])
 
@@ -228,7 +227,6 @@ else:
 
 option = st.radio("اختيار طريقة الإخراج:", ["📦 تحميل ZIP", "☁️ رفع إلى Google Drive + مشاركة تلقائية"])
 
-# ✅ الخيار الجديد
 allow_download = st.checkbox("✅ السماح بتنزيل الملف من Google Drive", value=False)
 
 if students:
@@ -242,7 +240,6 @@ if uploaded_files and students:
     if st.button("🚀 بدء العملية"):
         with st.spinner("⏳ جاري تنفيذ العملية..."):
             mode = "Drive" if option.startswith("☁️") else "ZIP"
-            # ✅ حفظ نسخ الملفات
             file_copies = []
             for file in uploaded_files:
                 file_bytes = file.read()
