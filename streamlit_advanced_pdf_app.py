@@ -96,7 +96,7 @@ def upload_and_share(filename, filepath, email, allow_download):
     uploaded_file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
     file_id = uploaded_file.get("id")
     link = f"https://drive.google.com/file/d/{file_id}/view"
-    if email and re.match(r"[^@]+@[^@]+\\.[^@]+", email):
+    if email and re.match(r"[^@]+@[^@]+\.[^@]+", email):
         try:
             drive_service.permissions().create(
                 fileId=file_id,
@@ -116,6 +116,10 @@ def upload_and_share(filename, filepath, email, allow_download):
 
 # ✅ Streamlit slider to control opacity
 opacity = st.slider("🔆 درجة شفافية اسم الطالب داخل الملف", min_value=0.05, max_value=1.0, value=0.5, step=0.05)
+
+# ✅ إصلاح خطأ f-string الغير مغلق
+# (هذا الجزء يجب وضعه داخل process_students)
+# message = f"📅 الملفات الخاصة بـ {name}:\n🔑 الباسورد: {password}\n{links_msg}"
 
 def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, alpha=0.12):
     packet = BytesIO()
