@@ -58,7 +58,7 @@ def send_telegram_message(message):
     try:
         requests.post(url, data=data)
     except Exception as e:
-        st.warning(f"📋 فشل إرسال تيليجرام: {e}")
+        st.warning(f"📛 فشل إرسال تيليجرام: {e}")
 
 def send_email_to_student(name, email, password, link):
     try:
@@ -68,7 +68,7 @@ def send_email_to_student(name, email, password, link):
         msg["Subject"] = "🔐 ملفك من فريق د. محمد العمري"
         body = f"""مرحبًا {name},
 
-📌 روابط الملفات:
+📎 روابط الملفات:
 {link}
 
 🔑 كلمة المرور: {password}
@@ -81,7 +81,7 @@ def send_email_to_student(name, email, password, link):
             server.login(EMAIL_SENDER, EMAIL_PASSWORD)
             server.send_message(msg)
     except Exception as e:
-        st.warning(f"📋 فشل إرسال الإيميل إلى {email}: {e}")
+        st.warning(f"📛 فشل إرسال الإيميل إلى {email}: {e}")
 
 def generate_qr_code(link):
     qr = qrcode.make(link)
@@ -110,12 +110,9 @@ def upload_and_share(filename, filepath, email, allow_download):
                     "viewersCanCopyContent": allow_download
                 }).execute()
         except Exception as e:
-            st.warning(f"📋 مشاركة فشلت مع {email}: {e}")
+            st.warning(f"📛 مشاركة فشلت مع {email}: {e}")
             return ""
     return link
-
-# ✅ Streamlit slider to control opacity
-opacity = st.slider("🔆 درجة شفافية اسم الطالب داخل الملف", min_value=0.05, max_value=1.0, value=0.5, step=0.05)
 
 def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, alpha=0.12):
     packet = BytesIO()
@@ -128,7 +125,7 @@ def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, al
             c.saveState()
             c.translate(x, y)
             c.rotate(rotation)
-            c.drawString(0, 0, f"خاص بـ ِ {name}")
+            c.drawString(0, 0, f"خاص بـ ـ {name}")
             c.restoreState()
     c.setFillAlpha(1)
     c.setFont("Cairo", 8)
@@ -140,6 +137,7 @@ def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, al
     c.save()
     packet.seek(0)
     return PdfReader(packet).pages[0]
+
 def apply_pdf_protection(input_path, output_path, password):
     reader = PdfReader(input_path)
     writer = PdfWriter()
@@ -149,36 +147,12 @@ def apply_pdf_protection(input_path, output_path, password):
     with open(output_path, "wb") as f:
         writer.write(f)
 
-def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, alpha=0.12):
-    packet = BytesIO()
-    c = canvas.Canvas(packet, pagesize=letter)
-    c.setFont("Cairo", font_size)
-    c.setFillAlpha(alpha)
-    width, height = letter
-    for x in range(0, int(width), spacing):
-        for y in range(0, int(height), spacing):
-            c.saveState()
-            c.translate(x, y)
-            c.rotate(rotation)
-            c.drawString(0, 0, f"خاص بـ ِ {name}")
-            c.restoreState()
-    c.setFillAlpha(1)
-    c.setFont("Cairo", 8)
-    reshaped_text = arabic_reshaper.reshape(" هذا الملف محمي ولا يجوز تداوله او طباعته إلا باذن خطي")
-    bidi_text = get_display(reshaped_text)
-    c.drawString(30, 30, bidi_text)
-    qr_img = generate_qr_code(link)
-    c.drawImage(qr_img, width - 80, 15, width=50, height=50)
-    c.save()
-    packet.seek(0)
-    return PdfReader(packet).pages[0]
-
 def process_students(file_copies, students, mode, allow_download):
     temp_dir = tempfile.mkdtemp()
     password_file_path = os.path.join(temp_dir, "passwords_and_links.csv")
     pdf_paths = []
 
-    with open(password_file_path, mode="w", encoding="utf-8", newline="") as pw_file:
+    with open(password_file_path, mode="w", newline="", encoding="utf-8") as pw_file:
         writer_csv = csv.writer(pw_file)
         writer_csv.writerow(["Student Name", "Email", "Password", "Drive Links"])
 
@@ -197,33 +171,33 @@ def process_students(file_copies, students, mode, allow_download):
                     raw_path = os.path.join(temp_dir, f"{safe_name}_{base_filename}_raw.pdf")
                     protected_path = os.path.join(temp_dir, f"{safe_name}_{base_filename}.pdf")
 
-                    reader = PdfReader(temp_input.name)
-
+                    drive_link = "https://pdf.alomari.com/placeholder"
                     if mode == "Drive":
-                        temp_protected = os.path.join(temp_dir, f"{safe_name}_{base_filename}_temp.pdf")
-                        apply_pdf_protection(temp_input.name, temp_protected, password)
-                        drive_link = upload_and_share(f"{safe_name}_{base_filename}.pdf", temp_protected, email, allow_download)
-                    else:
-                        drive_link = "https://pdf.alomari.com/placeholder"
+                        drive_link = "https://placeholder"
 
-                    watermark_page = create_watermark_page(name, drive_link)
+                    reader = PdfReader(temp_input.name)
                     writer = PdfWriter()
+                    watermark_page = create_watermark_page(name, drive_link)
+
                     for page in reader.pages:
                         page.merge_page(watermark_page)
                         writer.add_page(page)
+
                     with open(raw_path, "wb") as f_out:
                         writer.write(f_out)
 
                     apply_pdf_protection(raw_path, protected_path, password)
+
                     if mode == "Drive":
+                        final_name = f"{safe_name}_{base_filename}.pdf"
+                        drive_link = upload_and_share(final_name, protected_path, email, allow_download)
                         student_links.append(drive_link)
+
                     pdf_paths.append(protected_path)
 
                 if mode == "Drive":
                     links_msg = "\n".join([f"{i+1}. {link}" for i, link in enumerate(student_links)])
-                    message = f"""📅 الملفات الخاصة بـ {name}:
-🔑 الباسورد: {password}
-{links_msg}"""
+                    message = f"📥 الملفات الخاصة بـ {name}:\n🔑 الباسورد: {password}\n{links_msg}"
                     send_telegram_message(message)
                     send_email_to_student(name, email, password, links_msg)
 
@@ -251,6 +225,7 @@ else:
 
 option = st.radio("اختيار طريقة الإخراج:", ["📦 تحميل ZIP", "☁️ رفع إلى Google Drive + مشاركة تلقائية"])
 
+# ✅ الخيار الجديد
 allow_download = st.checkbox("✅ السماح بتنزيل الملف من Google Drive", value=False)
 
 if students:
@@ -264,6 +239,7 @@ if uploaded_files and students:
     if st.button("🚀 بدء العملية"):
         with st.spinner("⏳ جاري تنفيذ العملية..."):
             mode = "Drive" if option.startswith("☁️") else "ZIP"
+            # ✅ حفظ نسخ الملفات
             file_copies = []
             for file in uploaded_files:
                 file_bytes = file.read()
