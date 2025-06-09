@@ -27,30 +27,26 @@ from reportlab.lib.utils import ImageReader
 import arabic_reshaper
 from bidi.algorithm import get_display
 
-# إعداد الصفحة
 st.set_page_config(page_title="🔐 Alomari PDF Protector", layout="wide")
 st.title("🔐 نظام الحماية الذكي - د. محمد العمري")
 
-# التحقق من الدخول
-ACCESS_KEY = st.secrets["ACCESS_KEY"]
+ACCESS_KEY = os.environ["ACCESS_KEY"]
 code = st.text_input("🔑 أدخل رمز الدخول:", type="password")
 if code != ACCESS_KEY:
     st.warning("⚠️ رمز الدخول غير صحيح")
     st.stop()
 
-# إعداد الخط
 FONT_PATH = "Cairo-Regular.ttf"
 pdfmetrics.registerFont(TTFont("Cairo", FONT_PATH))
 
-# إعدادات API
-FOLDER_ID = st.secrets["FOLDER_ID"]
-SHEET_ID = st.secrets["SHEET_ID"]
-TELEGRAM_BOT_TOKEN = st.secrets["TELEGRAM_BOT_TOKEN"]
-TELEGRAM_CHAT_ID = st.secrets["TELEGRAM_CHAT_ID"]
-EMAIL_SENDER = st.secrets["EMAIL_SENDER"]
-EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
+FOLDER_ID = os.environ["FOLDER_ID"]
+SHEET_ID = os.environ["SHEET_ID"]
+TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
+TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+EMAIL_SENDER = os.environ["EMAIL_SENDER"]
+EMAIL_PASSWORD = os.environ["EMAIL_PASSWORD"]
 
-service_info = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT"])
+service_info = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT"])
 creds = service_account.Credentials.from_service_account_info(service_info, scopes=["https://www.googleapis.com/auth/drive"])
 drive_service = build("drive", "v3", credentials=creds)
 gc = gspread.service_account_from_dict(service_info)
