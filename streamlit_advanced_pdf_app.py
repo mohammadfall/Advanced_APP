@@ -120,6 +120,8 @@ opacity = st.slider("🔆 درجة شفافية اسم الطالب داخل ا�
 message = f"📅 الملفات الخاصة بـ {name}:
 🔑 الباسورد: {password}
 {links_msg}"
+🔑 الباسورد: {password}
+{links_msg}"
 
 def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, alpha=0.12):
     packet = BytesIO()
