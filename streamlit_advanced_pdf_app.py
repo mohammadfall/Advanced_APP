@@ -200,9 +200,9 @@ def process_students(file_copies, students, mode, allow_download):
 
                 if mode == "Drive":
                     links_msg = "\n".join([f"{i+1}. {link}" for i, link in enumerate(student_links)])
-                    message = f"📅 الملفات الخاصة بـ {name}:
+                    message = f"""📅 الملفات الخاصة بـ {name}:
 🔑 الباسورد: {password}
-{links_msg}"
+{links_msg}"""
                     send_telegram_message(message)
                     send_email_to_student(name, email, password, links_msg)
 
