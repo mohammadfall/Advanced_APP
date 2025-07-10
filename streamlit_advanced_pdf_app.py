@@ -1,79 +1,56 @@
-# ✅ Advanced PDF Tool by Dr. Alomari (OAuth Manual Flow + UI + Email + Telegram + QR Code + Preview + Logo)
+# ✅ Advanced PDF Tool by Dr. Alomari (UI + Email + Telegram + QR Code + Preview + Logo)
 import streamlit as st
-import os
-import json
-import pandas as pd
-import requests
 import tempfile
-from google_auth_oauthlib.flow import Flow
+import os
+import pandas as pd
+import re
+import requests
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from PyPDF2 import PdfReader, PdfWriter
+from reportlab.pdfgen import canvas
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.pagesizes import letter
+from io import BytesIO
+from zipfile import ZipFile
+import json
+import csv
+from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-from google.oauth2.credentials import Credentials
+import gspread
+from datetime import datetime
+import qrcode
+from reportlab.lib.utils import ImageReader
+import arabic_reshaper
+from bidi.algorithm import get_display
 
-st.set_page_config(page_title="🔐 Alomari PDF Protector (OAuth)", layout="wide")
-st.title("🔐 نظام الحماية الذكي (نسخة OAuth) - د. محمد العمري")
+st.set_page_config(page_title="🔐 Alomari PDF Protector", layout="wide")
+st.title("🔐 نظام الحماية الذكي - د. محمد العمري")
 
-# --- Access control ---
-ACCESS_KEY = "alomari2025"
+ACCESS_KEY = os.environ["ACCESS_KEY"]
 code = st.text_input("🔑 أدخل رمز الدخول:", type="password")
 if code != ACCESS_KEY:
     st.warning("⚠️ رمز الدخول غير صحيح")
     st.stop()
 
-# --- OAuth config ---
-oauth_config = {
-    "web": {
-        "client_id": "203472543529-2a1cj2icu6o7otvb7bp2m24apu86ompp.apps.googleusercontent.com",
-        "client_secret": "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",
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob", "http://localhost"]
-    }
-}
+custom_message = st.text_area("📝 رسالة إضافية تظهر في الإيميل (اختياري)", placeholder="اكتب رسالة شكر أو تعليمات للطالب هنا...")
 
-flow = Flow.from_client_config(
-    oauth_config,
-    scopes=["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/userinfo.email"],
-    redirect_uri="https://advancedapp-version2.streamlit.app/"
-)
+FONT_PATH = "Cairo-Regular.ttf"
+pdfmetrics.registerFont(TTFont("Cairo", FONT_PATH))
 
-auth_url, _ = flow.authorization_url(prompt='consent')
-st.markdown(f"[🔐 اضغط هنا لتسجيل الدخول بحساب Google](%s)" % auth_url)
-auth_code = st.text_input("📥 بعد تسجيل الدخول، الصق رمز المصادقة هنا:")
+FOLDER_ID = os.environ["FOLDER_ID"]
+SHEET_ID = os.environ["SHEET_ID"]
+TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
+TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+EMAIL_SENDER = os.environ["EMAIL_SENDER"]
+EMAIL_PASSWORD = os.environ["EMAIL_PASSWORD"]
 
-if auth_code:
-    try:
-        flow.fetch_token(code=auth_code)
-        creds = flow.credentials
-        drive_service = build("drive", "v3", credentials=creds)
-        st.success("✅ تم تسجيل الدخول بنجاح، يمكنك الآن رفع ملفاتك المحمية")
-
-        # --- رفع ملفات PDF ---
-        uploaded_files = st.file_uploader("📄 ارفع ملفات PDF ليتم حمايتها ورفعها على درايفك:", type=["pdf"], accept_multiple_files=True)
-        if uploaded_files:
-            for uploaded_file in uploaded_files:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp:
-                    temp.write(uploaded_file.getbuffer())
-                    temp_path = temp.name
-                try:
-                    media = MediaFileUpload(temp_path, mimetype="application/pdf")
-                    uploaded = drive_service.files().create(body={"name": uploaded_file.name}, media_body=media, fields="id").execute()
-                    st.success(f"📤 تم رفع الملف: {uploaded_file.name} (ID: {uploaded['id']})")
-                    os.remove(temp_path)
-                except Exception as e:
-                    st.error(f"❌ فشل رفع الملف {uploaded_file.name}: {e}")
-    except Exception as e:
-        st.error(f"❌ فشل تسجيل الدخول: {e}")
-
-
-
-
-
-
-
-
-
-
+service_info = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT"])
+creds = service_account.Credentials.from_service_account_info(service_info, scopes=["https://www.googleapis.com/auth/drive"])
+drive_service = build("drive", "v3", credentials=creds)
 gc = gspread.service_account_from_dict(service_info)
 sheet = gc.open_by_key(SHEET_ID).worksheet("PDF Tracking Log")
 
@@ -83,7 +60,7 @@ def send_telegram_message(message):
     try:
         requests.post(url, data=data)
     except Exception as e:
-        st.warning(f"📻 فشل إرسال تيليجرام: {e}")
+        st.warning(f"📛 فشل إرسال تيليجرام: {e}")
 
 def send_email_to_student(name, email, password, link, extra_message=""):
     try:
@@ -93,7 +70,7 @@ def send_email_to_student(name, email, password, link, extra_message=""):
         msg["Subject"] = "🔐 ملفك من فريق د. محمد العمري"
         body = f"""مرحبًا {name},
 
-📌 روابط الملفات:
+📎 روابط الملفات:
 {link}
 
 🔑 كلمة المرور: {password}
@@ -109,8 +86,7 @@ def send_email_to_student(name, email, password, link, extra_message=""):
             server.login(EMAIL_SENDER, EMAIL_PASSWORD)
             server.send_message(msg)
     except Exception as e:
-        st.warning(f"📻 فشل إرسال الإيميل إلى {email}: {e}")
-
+        st.warning(f"📛 فشل إرسال الإيميل إلى {email}: {e}")
 def generate_qr_code(link):
     qr = qrcode.make(link)
     output = BytesIO()
@@ -129,13 +105,13 @@ def upload_and_share(filename, filepath, email, allow_download):
             supportsAllDrives=True
         ).execute()
     except Exception as e:
-        st.error(f"📻 فشل في رفع الملف إلى Google Drive: {e}")
+        st.error(f"📛 فشل في رفع الملف إلى Google Drive: {e}")
         return ""
 
     file_id = uploaded_file.get("id")
     link = f"https://drive.google.com/file/d/{file_id}/view"
 
-    if email and re.match(r"[^@]+@[^@]+\.[^@]+", email):
+    if email and re.match(r"[^@]+@[^@]+\\.[^@]+", email):
         try:
             drive_service.permissions().create(
                 fileId=file_id,
@@ -153,13 +129,10 @@ def upload_and_share(filename, filepath, email, allow_download):
                 supportsAllDrives=True
             ).execute()
         except Exception as e:
-            st.warning(f"📻 مشاركة فشلت مع {email}: {e}")
+            st.warning(f"📛 مشاركة فشلت مع {email}: {e}")
             return ""
 
     return link
-
-
-
 
 def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, alpha=0.12):
     packet = BytesIO()
