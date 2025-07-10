@@ -36,6 +36,8 @@ if code != ACCESS_KEY:
     st.warning("⚠️ رمز الدخول غير صحيح")
     st.stop()
 
+custom_message = st.text_area("📝 رسالة إضافية تظهر في الإيميل (اختياري)", placeholder="اكتب رسالة شكر أو تعليمات للطالب هنا...")
+
 FONT_PATH = "Cairo-Regular.ttf"
 pdfmetrics.registerFont(TTFont("Cairo", FONT_PATH))
 
@@ -60,7 +62,7 @@ def send_telegram_message(message):
     except Exception as e:
         st.warning(f"📛 فشل إرسال تيليجرام: {e}")
 
-def send_email_to_student(name, email, password, link):
+def send_email_to_student(name, email, password, link, extra_message=""):
     try:
         msg = MIMEMultipart()
         msg["From"] = EMAIL_SENDER
@@ -75,6 +77,9 @@ def send_email_to_student(name, email, password, link):
 
 ⚠️ الملفات خاصة بك فقط. لا تشاركها مع الآخرين.
 """
+        if extra_message.strip():
+            body += f"\n📩 ملاحظة من الدكتور:\n{extra_message.strip()}"
+
         msg.attach(MIMEText(body, "plain"))
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
             server.starttls()
@@ -82,7 +87,6 @@ def send_email_to_student(name, email, password, link):
             server.send_message(msg)
     except Exception as e:
         st.warning(f"📛 فشل إرسال الإيميل إلى {email}: {e}")
-
 def generate_qr_code(link):
     qr = qrcode.make(link)
     output = BytesIO()
@@ -93,25 +97,41 @@ def generate_qr_code(link):
 def upload_and_share(filename, filepath, email, allow_download):
     file_metadata = {"name": filename, "parents": [FOLDER_ID]}
     media = MediaFileUpload(filepath, mimetype="application/pdf")
-    uploaded_file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+    try:
+        uploaded_file = drive_service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields="id",
+            supportsAllDrives=True
+        ).execute()
+    except Exception as e:
+        st.error(f"📛 فشل في رفع الملف إلى Google Drive: {e}")
+        return ""
+
     file_id = uploaded_file.get("id")
     link = f"https://drive.google.com/file/d/{file_id}/view"
-    if email and re.match(r"[^@]+@[^@]+\.[^@]+", email):
+
+    if email and re.match(r"[^@]+@[^@]+\\.[^@]+", email):
         try:
             drive_service.permissions().create(
                 fileId=file_id,
                 body={"type": "user", "role": "reader", "emailAddress": email.strip()},
-                fields='id', sendNotificationEmail=True
+                fields='id',
+                sendNotificationEmail=True,
+                supportsAllDrives=True
             ).execute()
             drive_service.files().update(
                 fileId=file_id,
                 body={
                     "copyRequiresWriterPermission": True,
                     "viewersCanCopyContent": allow_download
-                }).execute()
+                },
+                supportsAllDrives=True
+            ).execute()
         except Exception as e:
             st.warning(f"📛 مشاركة فشلت مع {email}: {e}")
             return ""
+
     return link
 
 def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, alpha=0.12):
@@ -146,7 +166,6 @@ def apply_pdf_protection(input_path, output_path, password):
     writer.encrypt(user_password=password, owner_password=None, permissions_flag=4)
     with open(output_path, "wb") as f:
         writer.write(f)
-
 def process_students(file_copies, students, mode, allow_download):
     temp_dir = tempfile.mkdtemp()
     password_file_path = os.path.join(temp_dir, "passwords_and_links.csv")
@@ -199,13 +218,14 @@ def process_students(file_copies, students, mode, allow_download):
                     links_msg = "\n".join([f"{i+1}. {link}" for i, link in enumerate(student_links)])
                     message = f"📥 الملفات الخاصة بـ {name}:\n🔑 الباسورد: {password}\n{links_msg}"
                     send_telegram_message(message)
-                    send_email_to_student(name, email, password, links_msg)
+                    send_email_to_student(name, email, password, links_msg, custom_message)
 
                 writer_csv.writerow([name, email, password, " | ".join(student_links)])
                 sheet.append_row([name, email, password, " | ".join(student_links), datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
 
     return pdf_paths, password_file_path, temp_dir
 
+# === واجهة الاستخدام ===
 uploaded_files = st.file_uploader("📄 ارفع كل ملفات المادة (PDFs)", type=["pdf"], accept_multiple_files=True)
 input_method = st.radio("📋 إدخال الأسماء:", ["📁 رفع ملف Excel (A: الاسم، B: الإيميل)", "✍️ إدخال يدوي"])
 
@@ -224,8 +244,6 @@ else:
                 students.append(parts)
 
 option = st.radio("اختيار طريقة الإخراج:", ["📦 تحميل ZIP", "☁️ رفع إلى Google Drive + مشاركة تلقائية"])
-
-# ✅ الخيار الجديد
 allow_download = st.checkbox("✅ السماح بتنزيل الملف من Google Drive", value=False)
 
 if students:
@@ -239,13 +257,9 @@ if uploaded_files and students:
     if st.button("🚀 بدء العملية"):
         with st.spinner("⏳ جاري تنفيذ العملية..."):
             mode = "Drive" if option.startswith("☁️") else "ZIP"
-            # ✅ حفظ نسخ الملفات
-            file_copies = []
-            for file in uploaded_files:
-                file_bytes = file.read()
-                file_copies.append((file.name, file_bytes))
-
+            file_copies = [(file.name, file.read()) for file in uploaded_files]
             pdf_paths, password_file_path, temp_dir = process_students(file_copies, students, mode, allow_download)
+
             if mode == "ZIP":
                 zip_path = os.path.join(temp_dir, "protected_students.zip")
                 with ZipFile(zip_path, "w") as zipf:
