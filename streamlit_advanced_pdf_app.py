@@ -52,6 +52,34 @@ service_info = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT"])
 creds = service_account.Credentials.from_service_account_info(service_info, scopes=["https://www.googleapis.com/auth/drive"])
 drive_service = build("drive", "v3", credentials=creds)
 
+# للتأكد من حساب الرفع
+service_email = service_info.get("client_email", "غير معروف")
+st.info(f"📤 يتم الرفع باستخدام حساب الخدمة: {service_email}")
+
+# 🔥 زر لحذف كل الملفات التي رفعها الحساب (لتوفير المساحة)
+if st.button("🗑️ حذف جميع الملفات من Google Drive الخاص بحساب الخدمة"):
+    with st.spinner("⏳ جاري الحذف... هذا قد يستغرق وقتًا حسب عدد الملفات"):
+        try:
+            results = drive_service.files().list(fields="files(id, name)").execute()
+            files = results.get("files", [])
+            for file in files:
+                try:
+                    drive_service.files().delete(fileId=file["id"]).execute()
+                    st.success(f"✅ تم حذف الملف: {file['name']}")
+                except Exception as delete_err:
+                    st.error(f"❌ فشل حذف الملف {file['name']}: {delete_err}")
+            if not files:
+                st.info("📂 لا يوجد ملفات حالياً في Google Drive الخاص بحساب الخدمة.")
+        except Exception as e:
+            st.error(f"📛 فشل في جلب الملفات أو الحذف: {e}")
+
+
+
+
+
+
+
+
 gc = gspread.service_account_from_dict(service_info)
 sheet = gc.open_by_key(SHEET_ID).worksheet("PDF Tracking Log")
 
@@ -61,7 +89,7 @@ def send_telegram_message(message):
     try:
         requests.post(url, data=data)
     except Exception as e:
-        st.warning(f"📛 فشل إرسال تيليجرام: {e}")
+        st.warning(f"📻 فشل إرسال تيليجرام: {e}")
 
 def send_email_to_student(name, email, password, link, extra_message=""):
     try:
@@ -71,7 +99,7 @@ def send_email_to_student(name, email, password, link, extra_message=""):
         msg["Subject"] = "🔐 ملفك من فريق د. محمد العمري"
         body = f"""مرحبًا {name},
 
-📎 روابط الملفات:
+📌 روابط الملفات:
 {link}
 
 🔑 كلمة المرور: {password}
@@ -87,7 +115,7 @@ def send_email_to_student(name, email, password, link, extra_message=""):
             server.login(EMAIL_SENDER, EMAIL_PASSWORD)
             server.send_message(msg)
     except Exception as e:
-        st.warning(f"📛 فشل إرسال الإيميل إلى {email}: {e}")
+        st.warning(f"📻 فشل إرسال الإيميل إلى {email}: {e}")
 
 def generate_qr_code(link):
     qr = qrcode.make(link)
@@ -103,10 +131,11 @@ def upload_and_share(filename, filepath, email, allow_download):
         uploaded_file = drive_service.files().create(
             body=file_metadata,
             media_body=media,
-            fields="id"
+            fields="id",
+            supportsAllDrives=True
         ).execute()
     except Exception as e:
-        st.error(f"📛 فشل في رفع الملف إلى Google Drive: {e}")
+        st.error(f"📻 فشل في رفع الملف إلى Google Drive: {e}")
         return ""
 
     file_id = uploaded_file.get("id")
@@ -118,20 +147,23 @@ def upload_and_share(filename, filepath, email, allow_download):
                 fileId=file_id,
                 body={"type": "user", "role": "reader", "emailAddress": email.strip()},
                 fields='id',
-                sendNotificationEmail=True
+                sendNotificationEmail=True,
+                supportsAllDrives=True
             ).execute()
             drive_service.files().update(
                 fileId=file_id,
                 body={
                     "copyRequiresWriterPermission": True,
                     "viewersCanCopyContent": allow_download
-                }
+                },
+                supportsAllDrives=True
             ).execute()
         except Exception as e:
-            st.warning(f"📛 مشاركة فشلت مع {email}: {e}")
+            st.warning(f"📻 مشاركة فشلت مع {email}: {e}")
             return ""
 
     return link
+
 
 
 
