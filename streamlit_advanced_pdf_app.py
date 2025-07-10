@@ -87,6 +87,7 @@ def send_email_to_student(name, email, password, link, extra_message=""):
             server.send_message(msg)
     except Exception as e:
         st.warning(f"📛 فشل إرسال الإيميل إلى {email}: {e}")
+
 def generate_qr_code(link):
     qr = qrcode.make(link)
     output = BytesIO()
@@ -101,8 +102,7 @@ def upload_and_share(filename, filepath, email, allow_download):
         uploaded_file = drive_service.files().create(
             body=file_metadata,
             media_body=media,
-            fields="id",
-            supportsAllDrives=True
+            fields="id"
         ).execute()
     except Exception as e:
         st.error(f"📛 فشل في رفع الملف إلى Google Drive: {e}")
@@ -111,28 +111,27 @@ def upload_and_share(filename, filepath, email, allow_download):
     file_id = uploaded_file.get("id")
     link = f"https://drive.google.com/file/d/{file_id}/view"
 
-    if email and re.match(r"[^@]+@[^@]+\\.[^@]+", email):
+    if email and re.match(r"[^@]+@[^@]+\.[^@]+", email):
         try:
             drive_service.permissions().create(
                 fileId=file_id,
                 body={"type": "user", "role": "reader", "emailAddress": email.strip()},
                 fields='id',
-                sendNotificationEmail=True,
-                supportsAllDrives=True
+                sendNotificationEmail=True
             ).execute()
             drive_service.files().update(
                 fileId=file_id,
                 body={
                     "copyRequiresWriterPermission": True,
                     "viewersCanCopyContent": allow_download
-                },
-                supportsAllDrives=True
+                }
             ).execute()
         except Exception as e:
             st.warning(f"📛 مشاركة فشلت مع {email}: {e}")
             return ""
 
     return link
+
 
 def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, alpha=0.12):
     packet = BytesIO()
