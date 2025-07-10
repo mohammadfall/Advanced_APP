@@ -1,78 +1,70 @@
-# ✅ Advanced PDF Tool by Dr. Alomari (UI + Email + Telegram + QR Code + Preview + Logo)
+# ✅ Advanced PDF Tool by Dr. Alomari (OAuth + UI + Email + Telegram + QR Code + Preview + Logo)
 import streamlit as st
-import tempfile
 import os
-import pandas as pd
-import re
-import requests
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from PyPDF2 import PdfReader, PdfWriter
-from reportlab.pdfgen import canvas
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.lib.pagesizes import letter
-from io import BytesIO
-from zipfile import ZipFile
 import json
-import csv
-from google.oauth2 import service_account
+import pandas as pd
+import requests
+from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-import gspread
-from datetime import datetime
-import qrcode
-from reportlab.lib.utils import ImageReader
-import arabic_reshaper
-from bidi.algorithm import get_display
+from streamlit_oauth import OAuth2Component
 
-st.set_page_config(page_title="🔐 Alomari PDF Protector", layout="wide")
-st.title("🔐 نظام الحماية الذكي - د. محمد العمري")
+st.set_page_config(page_title="🔐 Alomari PDF Protector (OAuth)", layout="wide")
+st.title("🔐 نظام الحماية الذكي (نسخة OAuth) - د. محمد العمري")
 
-ACCESS_KEY = os.environ["ACCESS_KEY"]
+# --- Access control ---
+ACCESS_KEY = "alomari2025"
 code = st.text_input("🔑 أدخل رمز الدخول:", type="password")
 if code != ACCESS_KEY:
     st.warning("⚠️ رمز الدخول غير صحيح")
     st.stop()
 
-custom_message = st.text_area("📝 رسالة إضافية تظهر في الإيميل (اختياري)", placeholder="اكتب رسالة شكر أو تعليمات للطالب هنا...")
+# --- OAuth config ---
+oauth_config = {
+    "web": {
+        "client_id": "203472543529-2a1cj2icu6o7otvb7bp2m24apu86ompp.apps.googleusercontent.com",
+        "client_secret": "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",
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "redirect_uris": ["http://localhost:8501"]
+    }
+}
 
-FONT_PATH = "Cairo-Regular.ttf"
-pdfmetrics.registerFont(TTFont("Cairo", FONT_PATH))
+# --- OAuth2Component ---
+oauth = OAuth2Component(
+    client_id=oauth_config["web"]["client_id"],
+    client_secret=oauth_config["web"]["client_secret"],
+    authorize_endpoint=oauth_config["web"]["auth_uri"],
+    token_endpoint=oauth_config["web"]["token_uri"],
+    redirect_uri="http://localhost:8501",
+    scope=["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/userinfo.email"],
+)
 
-FOLDER_ID = os.environ["FOLDER_ID"]
-SHEET_ID = os.environ["SHEET_ID"]
-TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
-EMAIL_SENDER = os.environ["EMAIL_SENDER"]
-EMAIL_PASSWORD = os.environ["EMAIL_PASSWORD"]
+# --- OAuth Login Button ---
+token = oauth.authorize_button("🔐 تسجيل الدخول بحساب Google لرفع الملفات على درايفك")
+if not token:
+    st.stop()
 
-service_info = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT"])
-creds = service_account.Credentials.from_service_account_info(service_info, scopes=["https://www.googleapis.com/auth/drive"])
-drive_service = build("drive", "v3", credentials=creds)
+# --- Build Google Drive Service ---
+drive_service = build("drive", "v3", credentials=oauth.credentials)
 
-# للتأكد من حساب الرفع
-service_email = service_info.get("client_email", "غير معروف")
-st.info(f"📤 يتم الرفع باستخدام حساب الخدمة: {service_email}")
+st.success("✅ تم تسجيل الدخول بنجاح، يمكنك الآن رفع ملفاتك المحمية")
 
-# 🔥 زر لحذف كل الملفات التي رفعها الحساب (لتوفير المساحة)
-if st.button("🗑️ حذف جميع الملفات من Google Drive الخاص بحساب الخدمة"):
-    with st.spinner("⏳ جاري الحذف... هذا قد يستغرق وقتًا حسب عدد الملفات"):
+# --- رفع ملفات PDF ---
+uploaded_files = st.file_uploader("📄 ارفع ملفات PDF ليتم حمايتها ورفعها على درايفك:", type=["pdf"], accept_multiple_files=True)
+if uploaded_files:
+    for uploaded_file in uploaded_files:
+        with open(uploaded_file.name, "wb") as f:
+            f.write(uploaded_file.getbuffer())
         try:
-            query = f"'{service_email}' in owners"
-            results = drive_service.files().list(q=query, fields="files(id, name)").execute()
-            files = results.get("files", [])
-            for file in files:
-                try:
-                    drive_service.files().delete(fileId=file["id"]).execute()
-                    st.success(f"✅ تم حذف الملف: {file['name']}")
-                except Exception as delete_err:
-                    st.error(f"❌ فشل حذف الملف {file['name']}: {delete_err}")
-            if not files:
-                st.info("📂 لا يوجد ملفات حالياً في Google Drive الخاص بحساب الخدمة.")
+            media = MediaFileUpload(uploaded_file.name, mimetype="application/pdf")
+            uploaded = drive_service.files().create(body={"name": uploaded_file.name}, media_body=media, fields="id").execute()
+            st.success(f"📤 تم رفع الملف: {uploaded_file.name} (ID: {uploaded['id']})")
+            os.remove(uploaded_file.name)
         except Exception as e:
-            st.error(f"📛 فشل في جلب الملفات أو الحذف: {e}")
+            st.error(f"❌ فشل رفع الملف {uploaded_file.name}: {e}")
+
 
 
 
