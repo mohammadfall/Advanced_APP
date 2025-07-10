@@ -71,7 +71,7 @@ def get_oauth_credentials():
     flow = Flow.from_client_config(
         oauth_data,
         scopes=SCOPES,
-        redirect_uri=st.experimental_get_url()
+        redirect_uri = st.secrets["REDIRECT_URI"]
     )
     auth_url, _ = flow.authorization_url(prompt="consent")
     st.warning("🔐 الرجاء تسجيل الدخول إلى Google للسماح برفع الملفات إلى Drive")
