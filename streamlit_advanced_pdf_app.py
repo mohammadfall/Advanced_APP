@@ -17,20 +17,22 @@ from io import BytesIO
 from zipfile import ZipFile
 import json
 import csv
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
 import gspread
 from datetime import datetime
 import qrcode
 from reportlab.lib.utils import ImageReader
 import arabic_reshaper
 from bidi.algorithm import get_display
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+from google_auth_oauthlib.flow import Flow
+import pickle
+import google.auth.transport.requests
 
 st.set_page_config(page_title="🔐 Alomari PDF Protector", layout="wide")
 st.title("🔐 نظام الحماية الذكي - د. محمد العمري")
 
-ACCESS_KEY = os.environ["ACCESS_KEY"]
+ACCESS_KEY = st.secrets["ACCESS_KEY"]
 code = st.text_input("🔑 أدخل رمز الدخول:", type="password")
 if code != ACCESS_KEY:
     st.warning("⚠️ رمز الدخول غير صحيح")
@@ -41,18 +43,58 @@ custom_message = st.text_area("📝 رسالة إضافية تظهر في الإ
 FONT_PATH = "Cairo-Regular.ttf"
 pdfmetrics.registerFont(TTFont("Cairo", FONT_PATH))
 
-FOLDER_ID = os.environ["FOLDER_ID"]
-SHEET_ID = os.environ["SHEET_ID"]
-TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
-EMAIL_SENDER = os.environ["EMAIL_SENDER"]
-EMAIL_PASSWORD = os.environ["EMAIL_PASSWORD"]
+FOLDER_ID = st.secrets["FOLDER_ID"]
+SHEET_ID = st.secrets["SHEET_ID"]
+TELEGRAM_BOT_TOKEN = st.secrets["TELEGRAM_BOT_TOKEN"]
+TELEGRAM_CHAT_ID = st.secrets["TELEGRAM_CHAT_ID"]
+EMAIL_SENDER = st.secrets["EMAIL_SENDER"]
+EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
 
-service_info = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT"])
-creds = service_account.Credentials.from_service_account_info(service_info, scopes=["https://www.googleapis.com/auth/drive"])
+# === OAuth Authentication ===
+SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+TOKEN_PICKLE = "token.pkl"
+
+def get_oauth_credentials():
+    oauth_data = json.loads(st.secrets["GOOGLE_OAUTH"])
+
+    if os.path.exists(TOKEN_PICKLE):
+        with open(TOKEN_PICKLE, "rb") as token:
+            creds = pickle.load(token)
+        if creds.valid:
+            return creds
+        elif creds.expired and creds.refresh_token:
+            creds.refresh(google.auth.transport.requests.Request())
+            with open(TOKEN_PICKLE, "wb") as token:
+                pickle.dump(creds, token)
+            return creds
+
+    flow = Flow.from_client_config(
+        oauth_data,
+        scopes=SCOPES,
+        redirect_uri=st.experimental_get_url()
+    )
+    auth_url, _ = flow.authorization_url(prompt="consent")
+    st.warning("🔐 الرجاء تسجيل الدخول إلى Google للسماح برفع الملفات إلى Drive")
+    st.markdown(f"[اضغط هنا لتسجيل الدخول]({auth_url})")
+    code = st.text_input("📅 أدخل رمز المصادقة:")
+
+    if code:
+        try:
+            flow.fetch_token(code=code)
+            creds = flow.credentials
+            with open(TOKEN_PICKLE, "wb") as token:
+                pickle.dump(creds, token)
+            st.experimental_rerun()
+        except Exception as e:
+            st.error(f"فشل في المصادقة: {e}")
+
+    st.stop()
+
+creds = get_oauth_credentials()
 drive_service = build("drive", "v3", credentials=creds)
-gc = gspread.service_account_from_dict(service_info)
+gc = gspread.service_account_from_dict(json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT"]))
 sheet = gc.open_by_key(SHEET_ID).worksheet("PDF Tracking Log")
+
 
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
