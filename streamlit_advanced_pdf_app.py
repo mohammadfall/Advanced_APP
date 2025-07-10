@@ -34,7 +34,7 @@ oauth_config = {
 flow = Flow.from_client_config(
     oauth_config,
     scopes=["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/userinfo.email"],
-    redirect_uri="urn:ietf:wg:oauth:2.0:oob"
+    redirect_uri="https://advancedapp-version2.streamlit.app/"
 )
 
 auth_url, _ = flow.authorization_url(prompt='consent')
