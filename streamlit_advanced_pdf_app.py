@@ -1,13 +1,14 @@
-# ✅ Advanced PDF Tool by Dr. Alomari (OAuth + UI + Email + Telegram + QR Code + Preview + Logo)
+# ✅ Advanced PDF Tool by Dr. Alomari (OAuth Manual Flow + UI + Email + Telegram + QR Code + Preview + Logo)
 import streamlit as st
 import os
 import json
 import pandas as pd
 import requests
+import tempfile
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-from streamlit_oauth import OAuth2Component
+from google.oauth2.credentials import Credentials
 
 st.set_page_config(page_title="🔐 Alomari PDF Protector (OAuth)", layout="wide")
 st.title("🔐 نظام الحماية الذكي (نسخة OAuth) - د. محمد العمري")
@@ -26,44 +27,43 @@ oauth_config = {
         "client_secret": "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",
         "auth_uri": "https://accounts.google.com/o/oauth2/auth",
         "token_uri": "https://oauth2.googleapis.com/token",
-        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "redirect_uris": ["http://localhost:8501"]
+        "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob", "http://localhost"]
     }
 }
 
-# --- OAuth2Component ---
-oauth = OAuth2Component(
-    client_id=oauth_config["web"]["client_id"],
-    client_secret=oauth_config["web"]["client_secret"],
-    authorize_endpoint=oauth_config["web"]["auth_uri"],
-    token_endpoint=oauth_config["web"]["token_uri"],
-    redirect_uri="http://localhost:8501",
-    scope=["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/userinfo.email"],
+flow = Flow.from_client_config(
+    oauth_config,
+    scopes=["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/userinfo.email"],
+    redirect_uri="urn:ietf:wg:oauth:2.0:oob"
 )
 
-# --- OAuth Login Button ---
-token = oauth.authorize_button("🔐 تسجيل الدخول بحساب Google لرفع الملفات على درايفك")
-if not token:
-    st.stop()
+auth_url, _ = flow.authorization_url(prompt='consent')
+st.markdown(f"[🔐 اضغط هنا لتسجيل الدخول بحساب Google](%s)" % auth_url)
+auth_code = st.text_input("📥 بعد تسجيل الدخول، الصق رمز المصادقة هنا:")
 
-# --- Build Google Drive Service ---
-drive_service = build("drive", "v3", credentials=oauth.credentials)
+if auth_code:
+    try:
+        flow.fetch_token(code=auth_code)
+        creds = flow.credentials
+        drive_service = build("drive", "v3", credentials=creds)
+        st.success("✅ تم تسجيل الدخول بنجاح، يمكنك الآن رفع ملفاتك المحمية")
 
-st.success("✅ تم تسجيل الدخول بنجاح، يمكنك الآن رفع ملفاتك المحمية")
-
-# --- رفع ملفات PDF ---
-uploaded_files = st.file_uploader("📄 ارفع ملفات PDF ليتم حمايتها ورفعها على درايفك:", type=["pdf"], accept_multiple_files=True)
-if uploaded_files:
-    for uploaded_file in uploaded_files:
-        with open(uploaded_file.name, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        try:
-            media = MediaFileUpload(uploaded_file.name, mimetype="application/pdf")
-            uploaded = drive_service.files().create(body={"name": uploaded_file.name}, media_body=media, fields="id").execute()
-            st.success(f"📤 تم رفع الملف: {uploaded_file.name} (ID: {uploaded['id']})")
-            os.remove(uploaded_file.name)
-        except Exception as e:
-            st.error(f"❌ فشل رفع الملف {uploaded_file.name}: {e}")
+        # --- رفع ملفات PDF ---
+        uploaded_files = st.file_uploader("📄 ارفع ملفات PDF ليتم حمايتها ورفعها على درايفك:", type=["pdf"], accept_multiple_files=True)
+        if uploaded_files:
+            for uploaded_file in uploaded_files:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp:
+                    temp.write(uploaded_file.getbuffer())
+                    temp_path = temp.name
+                try:
+                    media = MediaFileUpload(temp_path, mimetype="application/pdf")
+                    uploaded = drive_service.files().create(body={"name": uploaded_file.name}, media_body=media, fields="id").execute()
+                    st.success(f"📤 تم رفع الملف: {uploaded_file.name} (ID: {uploaded['id']})")
+                    os.remove(temp_path)
+                except Exception as e:
+                    st.error(f"❌ فشل رفع الملف {uploaded_file.name}: {e}")
+    except Exception as e:
+        st.error(f"❌ فشل تسجيل الدخول: {e}")
 
 
 
