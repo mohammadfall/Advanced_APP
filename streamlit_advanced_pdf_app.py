@@ -52,10 +52,6 @@ service_info = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT"])
 creds = service_account.Credentials.from_service_account_info(service_info, scopes=["https://www.googleapis.com/auth/drive"])
 drive_service = build("drive", "v3", credentials=creds)
 
-# للتأكد من الحساب المستخدم للرفع
-about = drive_service.about().get(fields="user,emailAddress").execute()
-st.info(f"📤 يتم الرفع باستخدام الحساب: {about['emailAddress']}")
-
 gc = gspread.service_account_from_dict(service_info)
 sheet = gc.open_by_key(SHEET_ID).worksheet("PDF Tracking Log")
 
