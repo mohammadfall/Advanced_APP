@@ -60,7 +60,8 @@ st.info(f"📤 يتم الرفع باستخدام حساب الخدمة: {servic
 if st.button("🗑️ حذف جميع الملفات من Google Drive الخاص بحساب الخدمة"):
     with st.spinner("⏳ جاري الحذف... هذا قد يستغرق وقتًا حسب عدد الملفات"):
         try:
-            results = drive_service.files().list(fields="files(id, name)").execute()
+            query = f"'{service_email}' in owners"
+            results = drive_service.files().list(q=query, fields="files(id, name)").execute()
             files = results.get("files", [])
             for file in files:
                 try:
@@ -72,6 +73,7 @@ if st.button("🗑️ حذف جميع الملفات من Google Drive الخا�
                 st.info("📂 لا يوجد ملفات حالياً في Google Drive الخاص بحساب الخدمة.")
         except Exception as e:
             st.error(f"📛 فشل في جلب الملفات أو الحذف: {e}")
+
 
 
 
