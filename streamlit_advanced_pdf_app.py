@@ -25,9 +25,7 @@ import arabic_reshaper
 from bidi.algorithm import get_display
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-from google_auth_oauthlib.flow import Flow
-import pickle
-import google.auth.transport.requests
+from google.oauth2 import service_account
 
 st.set_page_config(page_title="🔐 Alomari PDF Protector", layout="wide")
 st.title("🔐 نظام الحماية الذكي - د. محمد العمري")
@@ -50,51 +48,17 @@ TELEGRAM_CHAT_ID = st.secrets["TELEGRAM_CHAT_ID"]
 EMAIL_SENDER = st.secrets["EMAIL_SENDER"]
 EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
 
-# === OAuth Authentication ===
+# === Service Account Authentication ===
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
-TOKEN_PICKLE = "token.pkl"
+SERVICE_ACCOUNT_INFO = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT"])
+creds = service_account.Credentials.from_service_account_info(
+    SERVICE_ACCOUNT_INFO,
+    scopes=SCOPES
+)
 
-def get_oauth_credentials():
-    oauth_data = json.loads(st.secrets["GOOGLE_OAUTH"])
-
-    if os.path.exists(TOKEN_PICKLE):
-        with open(TOKEN_PICKLE, "rb") as token:
-            creds = pickle.load(token)
-        if creds.valid:
-            return creds
-        elif creds.expired and creds.refresh_token:
-            creds.refresh(google.auth.transport.requests.Request())
-            with open(TOKEN_PICKLE, "wb") as token:
-                pickle.dump(creds, token)
-            return creds
-
-    flow = Flow.from_client_config(
-        oauth_data,
-        scopes=SCOPES,
-        redirect_uri = st.secrets["REDIRECT_URI"]
-    )
-    auth_url, _ = flow.authorization_url(prompt="consent")
-    st.warning("🔐 الرجاء تسجيل الدخول إلى Google للسماح برفع الملفات إلى Drive")
-    st.markdown(f"[اضغط هنا لتسجيل الدخول]({auth_url})")
-    code = st.text_input("📅 أدخل رمز المصادقة:")
-
-    if code:
-        try:
-            flow.fetch_token(code=code)
-            creds = flow.credentials
-            with open(TOKEN_PICKLE, "wb") as token:
-                pickle.dump(creds, token)
-            st.experimental_rerun()
-        except Exception as e:
-            st.error(f"فشل في المصادقة: {e}")
-
-    st.stop()
-
-creds = get_oauth_credentials()
 drive_service = build("drive", "v3", credentials=creds)
-gc = gspread.service_account_from_dict(json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT"]))
+gc = gspread.service_account_from_dict(SERVICE_ACCOUNT_INFO)
 sheet = gc.open_by_key(SHEET_ID).worksheet("PDF Tracking Log")
-
 
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -129,6 +93,7 @@ def send_email_to_student(name, email, password, link, extra_message=""):
             server.send_message(msg)
     except Exception as e:
         st.warning(f"📛 فشل إرسال الإيميل إلى {email}: {e}")
+
 def generate_qr_code(link):
     qr = qrcode.make(link)
     output = BytesIO()
@@ -175,6 +140,8 @@ def upload_and_share(filename, filepath, email, allow_download):
             return ""
 
     return link
+
+
 
 def create_watermark_page(name, link, font_size=20, spacing=200, rotation=35, alpha=0.12):
     packet = BytesIO()
