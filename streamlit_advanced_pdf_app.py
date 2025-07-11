@@ -66,11 +66,19 @@ if not creds or not creds.valid:
     if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())
     else:
-        flow = InstalledAppFlow.from_client_secrets_file(
-            "client_secret.json", SCOPES)
-        creds = flow.run_console()
-    with open("token.pickle", "wb") as token:
-        pickle.dump(creds, token)
+        flow = InstalledAppFlow.from_client_secrets_file("client_secret.json", SCOPES)
+        auth_url, _ = flow.authorization_url(prompt='consent')
+        st.markdown(f"[اضغط هنا لتسجيل الدخول باستخدام Google]({auth_url})")
+
+        auth_code = st.text_input("🔑 أدخل كود المصادقة (auth code) بعد تسجيل الدخول:")
+
+        if auth_code:
+            flow.fetch_token(code=auth_code)
+            creds = flow.credentials
+            with open("token.pickle", "wb") as token:
+                pickle.dump(creds, token)
+        else:
+            st.stop()
 
 drive_service = build("drive", "v3", credentials=creds)
 gc = gspread.authorize(creds)
