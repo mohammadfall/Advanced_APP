@@ -25,7 +25,9 @@ import arabic_reshaper
 from bidi.algorithm import get_display
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-from google.oauth2 import service_account
+import pickle
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
 
 st.set_page_config(page_title="🔐 Alomari PDF Protector", layout="wide")
 st.title("🔐 نظام الحماية الذكي - د. محمد العمري")
@@ -48,25 +50,31 @@ TELEGRAM_CHAT_ID = st.secrets["TELEGRAM_CHAT_ID"]
 EMAIL_SENDER = st.secrets["EMAIL_SENDER"]
 EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
 
-# === Service Account Authentication ===
+# === OAuth Authentication ===
 SCOPES = [
     "https://www.googleapis.com/auth/drive",
     "https://www.googleapis.com/auth/spreadsheets"
 ]
-SERVICE_ACCOUNT_INFO = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT"])
-creds = service_account.Credentials.from_service_account_info(
-    SERVICE_ACCOUNT_INFO,
-    scopes=SCOPES
-)
+
+creds = None
+
+if os.path.exists("token.pickle"):
+    with open("token.pickle", "rb") as token:
+        creds = pickle.load(token)
+
+if not creds or not creds.valid:
+    if creds and creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+    else:
+        flow = InstalledAppFlow.from_client_secrets_file(
+            "client_secret.json", SCOPES)
+        creds = flow.run_local_server(port=0)
+    with open("token.pickle", "wb") as token:
+        pickle.dump(creds, token)
 
 drive_service = build("drive", "v3", credentials=creds)
 gc = gspread.authorize(creds)
-try:
-    sheet = gc.open_by_key(SHEET_ID).worksheet("PDF Tracking Log")
-    st.success("✅ تم الوصول إلى الشيت بنجاح!")
-except Exception as e:
-    st.error("🚨 حدث خطأ أثناء الوصول إلى Google Sheet")
-    st.code(str(e))
+sheet = gc.open_by_key(SHEET_ID).worksheet("PDF Tracking Log")
 
 
 
