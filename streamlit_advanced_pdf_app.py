@@ -61,7 +61,13 @@ creds = service_account.Credentials.from_service_account_info(
 
 drive_service = build("drive", "v3", credentials=creds)
 gc = gspread.authorize(creds)
-sheet = gc.open_by_key(SHEET_ID).worksheet("PDF Tracking Log")
+try:
+    sheet = gc.open_by_key(SHEET_ID).worksheet("PDF Tracking Log")
+    st.success("✅ تم الوصول إلى الشيت بنجاح!")
+except Exception as e:
+    st.error("🚨 حدث خطأ أثناء الوصول إلى Google Sheet")
+    st.code(str(e))
+
 
 
 def send_telegram_message(message):
