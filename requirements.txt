@@ -13,5 +13,3 @@ openpyxl
 qrcode[pil]
 arabic-reshaper
 python-bidi
-streamlit-oauth
-pip install 
