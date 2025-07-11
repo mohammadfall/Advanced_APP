@@ -137,6 +137,7 @@ def generate_qr_code(link):
 def upload_and_share(filename, filepath, email, allow_download):
     file_metadata = {"name": filename, "parents": [FOLDER_ID]}
     media = MediaFileUpload(filepath, mimetype="application/pdf")
+
     try:
         uploaded_file = drive_service.files().create(
             body=file_metadata,
@@ -151,26 +152,42 @@ def upload_and_share(filename, filepath, email, allow_download):
     file_id = uploaded_file.get("id")
     link = f"https://drive.google.com/file/d/{file_id}/view"
 
-    if email and re.match(r"[^@]+@[^@]+\\.[^@]+", email):
+    # ✅ مشاركة مع الطالب فقط بالإيميل
+    if email and re.match(r"[^@]+@[^@]+\.[^@]+", email.strip()):
         try:
             drive_service.permissions().create(
                 fileId=file_id,
-                body={"type": "user", "role": "reader", "emailAddress": email.strip()},
+                body={
+                    "type": "user",
+                    "role": "reader",
+                    "emailAddress": email.strip()
+                },
                 fields='id',
                 sendNotificationEmail=True,
                 supportsAllDrives=True
             ).execute()
-            drive_service.files().update(
-                fileId=file_id,
-                body={
-                    "copyRequiresWriterPermission": True,
-                    "viewersCanCopyContent": allow_download
-                },
-                supportsAllDrives=True
-            ).execute()
         except Exception as e:
-            st.warning(f"📛 مشاركة فشلت مع {email}: {e}")
-            return ""
+            st.warning(f"⚠️ لم تتم مشاركة الملف مع {email}: {e}")
+
+    # ✅ التحكم بإمكانية التنزيل أو النسخ
+    try:
+        drive_service.files().update(
+            fileId=file_id,
+            body={
+                "copyRequiresWriterPermission": True,
+                "viewersCanCopyContent": allow_download
+            },
+            supportsAllDrives=True
+        ).execute()
+    except Exception as e:
+        st.warning(f"⚠️ فشل تحديث إعدادات التنزيل: {e}")
+
+    # ✅ عرض الصلاحيات (اختياري للتجريب)
+    try:
+        permissions = drive_service.permissions().list(fileId=file_id, supportsAllDrives=True).execute()
+        print("📋 صلاحيات الملف:", permissions)
+    except Exception as e:
+        print("⚠️ فشل جلب الصلاحيات:", e)
 
     return link
 
