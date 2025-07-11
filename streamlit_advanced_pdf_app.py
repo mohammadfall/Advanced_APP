@@ -49,7 +49,10 @@ EMAIL_SENDER = st.secrets["EMAIL_SENDER"]
 EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
 
 # === Service Account Authentication ===
-SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+SCOPES = [
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/spreadsheets"
+]
 SERVICE_ACCOUNT_INFO = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT"])
 creds = service_account.Credentials.from_service_account_info(
     SERVICE_ACCOUNT_INFO,
@@ -57,7 +60,7 @@ creds = service_account.Credentials.from_service_account_info(
 )
 
 drive_service = build("drive", "v3", credentials=creds)
-gc = gspread.service_account_from_dict(SERVICE_ACCOUNT_INFO)
+gc = gspread.authorize(creds)
 sheet = gc.open_by_key(SHEET_ID).worksheet("PDF Tracking Log")
 
 
