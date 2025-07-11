@@ -26,7 +26,7 @@ from bidi.algorithm import get_display
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 import pickle
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google_auth_oauthlib.flow import Flow
 from google.auth.transport.requests import Request
 
 st.set_page_config(page_title="🔐 Alomari PDF Protector", layout="wide")
@@ -57,7 +57,6 @@ SCOPES = [
 ]
 
 creds = None
-
 if os.path.exists("token.pickle"):
     with open("token.pickle", "rb") as token:
         creds = pickle.load(token)
@@ -66,17 +65,25 @@ if not creds or not creds.valid:
     if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())
     else:
-        flow = InstalledAppFlow.from_client_secrets_file("client_secret.json", SCOPES)
-        auth_url, _ = flow.authorization_url(prompt='consent')
-        st.markdown(f"[اضغط هنا لتسجيل الدخول باستخدام Google]({auth_url})")
+        flow = Flow.from_client_secrets_file(
+            "client_secret.json",
+            scopes=SCOPES,
+            redirect_uri="https://advancedapp-version2.streamlit.app/"
+        )
+        auth_url, _ = flow.authorization_url(prompt='consent', include_granted_scopes='true')
+        st.markdown(f"[🔐 اضغط هنا لتسجيل الدخول باستخدام Google]({auth_url})")
 
         auth_code = st.text_input("🔑 أدخل كود المصادقة (auth code) بعد تسجيل الدخول:")
 
         if auth_code:
-            flow.fetch_token(code=auth_code)
-            creds = flow.credentials
-            with open("token.pickle", "wb") as token:
-                pickle.dump(creds, token)
+            try:
+                flow.fetch_token(code=auth_code)
+                creds = flow.credentials
+                with open("token.pickle", "wb") as token:
+                    pickle.dump(creds, token)
+            except Exception as e:
+                st.error(f"📛 فشل الحصول على التوكن: {e}")
+                st.stop()
         else:
             st.stop()
 
