@@ -61,8 +61,6 @@ creds = None
 if os.path.exists("token.pickle"):
     os.remove("token.pickle")
 
-creds = None
-
 
 if not creds or not creds.valid:
     if creds and creds.expired and creds.refresh_token:
