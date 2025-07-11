@@ -57,9 +57,12 @@ SCOPES = [
 ]
 
 creds = None
+# ⚠️ حذف التوكن القديم لإجبار تسجيل دخول جديد
 if os.path.exists("token.pickle"):
-    with open("token.pickle", "rb") as token:
-        creds = pickle.load(token)
+    os.remove("token.pickle")
+
+creds = None
+
 
 if not creds or not creds.valid:
     if creds and creds.expired and creds.refresh_token:
@@ -142,7 +145,7 @@ def upload_and_share(filename, filepath, email, allow_download):
         uploaded_file = drive_service.files().create(
             body=file_metadata,
             media_body=media,
-            fields="id",
+            fields="id, owners",
             supportsAllDrives=True
         ).execute()
     except Exception as e:
@@ -152,9 +155,9 @@ def upload_and_share(filename, filepath, email, allow_download):
     file_id = uploaded_file.get("id")
     link = f"https://drive.google.com/file/d/{file_id}/view"
 
-    # ✅ مشاركة مع الطالب فقط بالإيميل
-    if email and re.match(r"[^@]+@[^@]+\.[^@]+", email.strip()):
-        try:
+    # ✅ مشاركة الملف مع الطالب فقط
+    try:
+        if email and re.match(r"[^@]+@[^@]+\.[^@]+", email.strip()):
             drive_service.permissions().create(
                 fileId=file_id,
                 body={
@@ -166,10 +169,10 @@ def upload_and_share(filename, filepath, email, allow_download):
                 sendNotificationEmail=True,
                 supportsAllDrives=True
             ).execute()
-        except Exception as e:
-            st.warning(f"⚠️ لم تتم مشاركة الملف مع {email}: {e}")
+    except Exception as e:
+        st.warning(f"⚠️ لم تتم مشاركة الملف مع {email}: {e}")
 
-    # ✅ التحكم بإمكانية التنزيل أو النسخ
+    # 🔒 السماح أو منع التنزيل
     try:
         drive_service.files().update(
             fileId=file_id,
@@ -182,14 +185,17 @@ def upload_and_share(filename, filepath, email, allow_download):
     except Exception as e:
         st.warning(f"⚠️ فشل تحديث إعدادات التنزيل: {e}")
 
-    # ✅ عرض الصلاحيات (اختياري للتجريب)
+    # 👁️ طباعة الصلاحيات ومالك الملف للتأكد (تظهر في الكونسول)
     try:
+        owner_info = drive_service.files().get(fileId=file_id, fields="owners").execute()
+        print("👤 مالك الملف:", owner_info)
         permissions = drive_service.permissions().list(fileId=file_id, supportsAllDrives=True).execute()
         print("📋 صلاحيات الملف:", permissions)
     except Exception as e:
         print("⚠️ فشل جلب الصلاحيات:", e)
 
     return link
+
 
 
 
