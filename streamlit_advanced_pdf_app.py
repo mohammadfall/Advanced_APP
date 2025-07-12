@@ -29,6 +29,7 @@ import pickle
 from google_auth_oauthlib.flow import Flow
 from google.auth.transport.requests import Request
 
+# === إعدادات الواجهة ===
 st.set_page_config(page_title="🔐 Alomari PDF Protector", layout="wide")
 st.title("🔐 نظام الحماية الذكي - د. محمد العمري")
 
@@ -40,9 +41,11 @@ if code != ACCESS_KEY:
 
 custom_message = st.text_area("📝 رسالة إضافية تظهر في الإيميل (اختياري)", placeholder="اكتب رسالة شكر أو تعليمات للطالب هنا...")
 
+# === إعداد الخط ===
 FONT_PATH = "Cairo-Regular.ttf"
 pdfmetrics.registerFont(TTFont("Cairo", FONT_PATH))
 
+# === إعداد المتغيرات السرية من secrets.toml ===
 FOLDER_ID = st.secrets["FOLDER_ID"]
 SHEET_ID = st.secrets["SHEET_ID"]
 TELEGRAM_BOT_TOKEN = st.secrets["TELEGRAM_BOT_TOKEN"]
@@ -50,7 +53,7 @@ TELEGRAM_CHAT_ID = st.secrets["TELEGRAM_CHAT_ID"]
 EMAIL_SENDER = st.secrets["EMAIL_SENDER"]
 EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
 
-# === OAuth Authentication ===
+# === إعداد صلاحيات Google API ===
 SCOPES = [
     "https://www.googleapis.com/auth/drive",
     "https://www.googleapis.com/auth/spreadsheets"
@@ -58,7 +61,7 @@ SCOPES = [
 
 creds = None
 
-# ✅ زر لإجبار تسجيل دخول جديد
+# ✅ زر لإعادة تسجيل الدخول
 if st.button("🔁 إعادة تسجيل الدخول من جديد"):
     if os.path.exists("token.pickle"):
         os.remove("token.pickle")
@@ -69,7 +72,7 @@ if os.path.exists("token.pickle"):
     with open("token.pickle", "rb") as token:
         creds = pickle.load(token)
 
-# ✅ بدء المصادقة إذا ما في توكن أو التوكن انتهى
+# ✅ بدء المصادقة إذا التوكن غير موجود أو غير صالح
 if not creds or not creds.valid:
     if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())
@@ -98,16 +101,11 @@ if not creds or not creds.valid:
         else:
             st.stop()
 
-
-
-if not creds or not creds.valid:
-    if creds and creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-    else:
-
+# ✅ إنشاء الخدمات بعد التأكد من التوكن
 drive_service = build("drive", "v3", credentials=creds)
 gc = gspread.authorize(creds)
 sheet = gc.open_by_key(SHEET_ID).worksheet("PDF Tracking Log")
+
 
 
 
