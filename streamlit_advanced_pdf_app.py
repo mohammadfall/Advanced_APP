@@ -58,8 +58,18 @@ SCOPES = [
 
 creds = None
 
+# ✅ زر لإجبار تسجيل دخول جديد
+if st.button("🔁 إعادة تسجيل الدخول من جديد"):
+    if os.path.exists("token.pickle"):
+        os.remove("token.pickle")
+        st.experimental_rerun()
 
+# ✅ تحميل التوكن إذا موجود
+if os.path.exists("token.pickle"):
+    with open("token.pickle", "rb") as token:
+        creds = pickle.load(token)
 
+# ✅ بدء المصادقة إذا ما في توكن أو التوكن انتهى
 if not creds or not creds.valid:
     if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())
@@ -80,11 +90,20 @@ if not creds or not creds.valid:
                 creds = flow.credentials
                 with open("token.pickle", "wb") as token:
                     pickle.dump(creds, token)
+                st.success("✅ تم الحصول على التوكن بنجاح. الرجاء إعادة تحميل الصفحة.")
+                st.stop()
             except Exception as e:
                 st.error(f"📛 فشل الحصول على التوكن: {e}")
                 st.stop()
         else:
             st.stop()
+
+
+
+if not creds or not creds.valid:
+    if creds and creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+    else:
 
 drive_service = build("drive", "v3", credentials=creds)
 gc = gspread.authorize(creds)
