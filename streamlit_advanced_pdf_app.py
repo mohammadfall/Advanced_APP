@@ -57,9 +57,7 @@ SCOPES = [
 ]
 
 creds = None
-# ⚠️ حذف التوكن القديم لإجبار تسجيل دخول جديد
-if os.path.exists("token.pickle"):
-    os.remove("token.pickle")
+
 
 
 if not creds or not creds.valid:
