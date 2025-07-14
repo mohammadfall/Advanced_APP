@@ -106,6 +106,29 @@ drive_service = build("drive", "v3", credentials=creds)
 gc = gspread.authorize(creds)
 sheet = gc.open_by_key(SHEET_ID).worksheet("PDF Tracking Log")
 
+# ✅ ميزة ترتيب الملفات تلقائيًا أو يدويًا
+uploaded_files = st.file_uploader("📄 ارفع كل ملفات المادة (PDFs)", type=["pdf"], accept_multiple_files=True)
+
+sorted_file_copies = []
+if uploaded_files:
+    st.markdown("### 🔃 ترتيب الملفات")
+    sort_mode = st.radio("اختر طريقة الترتيب:", ["تلقائي", "يدوي"])
+
+    file_names = [f.name for f in uploaded_files]
+
+    if sort_mode == "تلقائي":
+        sorted_files = sorted(uploaded_files, key=lambda f: f.name)
+        st.success("✅ تم الترتيب تلقائيًا حسب اسم الملف.")
+    else:
+        custom_order = st.multiselect("🔀 رتب الملفات يدويًا:", file_names, default=file_names)
+        if set(custom_order) == set(file_names):
+            sorted_files = sorted(uploaded_files, key=lambda f: custom_order.index(f.name))
+            st.success("✅ تم تطبيق الترتيب اليدوي بنجاح.")
+        else:
+            st.warning("⚠️ الرجاء التأكد من ترتيب جميع الملفات.")
+            sorted_files = uploaded_files
+
+    sorted_file_copies = [(file.name, file.read()) for file in sorted_files]
 
 
 
