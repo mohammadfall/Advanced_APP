@@ -107,7 +107,8 @@ gc = gspread.authorize(creds)
 sheet = gc.open_by_key(SHEET_ID).worksheet("PDF Tracking Log")
 
 # ✅ ميزة ترتيب الملفات تلقائيًا أو يدويًا
-uploaded_files = st.file_uploader("📄 ارفع كل ملفات المادة (PDFs)", type=["pdf"], accept_multiple_files=True)
+uploaded_files = st.file_uploader("📄 ارفع كل ملفات المادة (PDFs)", type=["pdf"], accept_multiple_files=True, key="file_upload_main")
+
 
 sorted_file_copies = []
 if uploaded_files:
