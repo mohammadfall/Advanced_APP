@@ -327,7 +327,7 @@ def process_students(file_copies, students, mode, allow_download):
     return pdf_paths, password_file_path, temp_dir
 
 # === واجهة الاستخدام ===
-uploaded_files = st.file_uploader("📄 ارفع كل ملفات المادة (PDFs)", type=["pdf"], accept_multiple_files=True)
+
 input_method = st.radio("📋 إدخال الأسماء:", ["📁 رفع ملف Excel (A: الاسم، B: الإيميل)", "✍️ إدخال يدوي"])
 
 students = []
