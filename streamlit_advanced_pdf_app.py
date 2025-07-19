@@ -28,6 +28,8 @@ from googleapiclient.http import MediaFileUpload
 import pickle
 from google_auth_oauthlib.flow import Flow
 from google.auth.transport.requests import Request
+import time
+
 
 # === إعدادات الواجهة ===
 st.set_page_config(page_title="🔐 Alomari PDF Protector", layout="wide")
@@ -372,6 +374,10 @@ if uploaded_files and students:
             else:
                 with open(password_file_path, "rb") as f:
                     st.download_button("📄 تحميل ملف كلمات السر والروابط", f.read(), file_name="passwords_and_links.csv")
+
+        st.success("✅ تم إرسال الملفات بنجاح! سيتم تحديث الصفحة...")
+        time.sleep(2)
+        st.experimental_rerun()
 
 st.markdown("---")
 st.caption("🛡️ تم تطوير هذا النظام بواسطة د. محمد العمري - جميع الحقوق محفوظة")
