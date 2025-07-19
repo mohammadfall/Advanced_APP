@@ -375,9 +375,16 @@ if uploaded_files and students:
                 with open(password_file_path, "rb") as f:
                     st.download_button("📄 تحميل ملف كلمات السر والروابط", f.read(), file_name="passwords_and_links.csv")
 
-        st.success("✅ تم إرسال الملفات بنجاح! سيتم تحديث الصفحة...")
-        time.sleep(2)
-        st.experimental_rerun()
+        # ✅ نحط علامة في session_state عشان نعرف إنه خلص
+        st.session_state["refresh_needed"] = True
+
+# ✅ نفذ الريفرش مرة وحدة خارج الضغط
+if "refresh_needed" in st.session_state and st.session_state["refresh_needed"]:
+    st.success("✅ تم إرسال الملفات بنجاح! سيتم تحديث الصفحة...")
+    time.sleep(2)
+    st.session_state["refresh_needed"] = False  # نمسح الفلاج حتى ما يعيد اللوب
+    st.experimental_rerun()
+
 
 st.markdown("---")
 st.caption("🛡️ تم تطوير هذا النظام بواسطة د. محمد العمري - جميع الحقوق محفوظة")
