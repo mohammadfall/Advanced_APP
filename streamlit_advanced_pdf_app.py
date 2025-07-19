@@ -442,7 +442,8 @@ if "refresh_needed" in st.session_state and st.session_state["refresh_needed"]:
     st.success("✅ تم إرسال الملفات بنجاح! سيتم تحديث الصفحة...")
     time.sleep(2)
     st.session_state["refresh_needed"] = False  # نمسح الفلاج حتى ما يعيد اللوب
-    st.experimental_rerun()
+    st.rerun()
+
 
 
 st.markdown("---")
