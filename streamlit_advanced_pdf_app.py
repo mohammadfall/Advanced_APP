@@ -126,7 +126,7 @@ creds = None
 if st.button("🔁 إعادة تسجيل الدخول من جديد"):
     if os.path.exists("token.pickle"):
         os.remove("token.pickle")
-        st.experimental_rerun()
+        st.rerun()
 
 # ✅ تحميل التوكن إذا موجود
 if os.path.exists("token.pickle"):
