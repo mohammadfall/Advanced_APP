@@ -29,6 +29,8 @@ import pickle
 from google_auth_oauthlib.flow import Flow
 from google.auth.transport.requests import Request
 import time
+import streamlit as st
+
 
 
 # === إعدادات الواجهة ===
@@ -41,7 +43,64 @@ if code != ACCESS_KEY:
     st.warning("⚠️ رمز الدخول غير صحيح")
     st.stop()
 
-custom_message = st.text_area("📝 رسالة إضافية تظهر في الإيميل (اختياري)", placeholder="اكتب رسالة شكر أو تعليمات للطالب هنا...")
+
+# ✅ هنا مكان استبدال الرسالة اليدوية بالنظام الجديد
+messages_options = {
+    "مكمل": {
+        "color": "blue",
+        "message": "📘 عزيزي الطالب، هذه الرسالة خاصة بالمكمل وتشمل جميع التعليمات الهامة."
+    },
+    "فيرست": {
+        "color": "orange",
+        "message": "🟠 مرحبًا، هذه مواد الفيرست فقط، نرجو مراجعتها بعناية."
+    },
+    "فيرست + سكند": {
+        "color": "red",
+        "message": "🔴 الملفات التالية تحتوي مواد الفيرست والسكند كاملة."
+    },
+    "سكند": {
+        "color": "green",
+        "message": "✅ هذه الملفات خاصة بالسكند فقط."
+    },
+    "ميد": {
+        "color": "purple",
+        "message": "🟣 مرحبًا، هذه ملفات الميد الخاصة بك."
+    },
+    "فاينل": {
+        "color": "cyan",
+        "message": "🔵 هذه الملفات خاصة بالفينال النهائي."
+    },
+    "كامل المادة": {
+        "color": "pink",
+        "message": "🌸 الملفات التالية تحتوي كامل المادة من البداية للنهاية."
+    },
+    "✏️ كتابة رسالة مخصصة...": {
+        "color": "gray",
+        "message": ""
+    }
+}
+
+selected_option = st.selectbox("📩 اختر رسالة جاهزة:", list(messages_options.keys()))
+selected_color = messages_options[selected_option]["color"]
+default_message = messages_options[selected_option]["message"]
+
+st.markdown(
+    f"""
+    <div style="display:flex;align-items:center;margin-bottom:10px;">
+        <div style="width:20px;height:20px;background:{selected_color};border-radius:50%;margin-right:10px;"></div>
+        <span style="font-size:16px;">الخيار الحالي: <b>{selected_option}</b></span>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+if selected_option == "✏️ كتابة رسالة مخصصة...":
+    custom_message = st.text_area("📝 اكتب رسالتك الخاصة:", placeholder="اكتب رسالة شكر أو تعليمات...")
+else:
+    custom_message = st.text_area("📝 الرسالة المختارة (يمكنك تعديلها):", value=default_message)
+
+st.write("✅ الرسالة النهائية التي سيتم إرسالها:")
+st.info(custom_message)
 
 # === إعداد الخط ===
 FONT_PATH = "Cairo-Regular.ttf"
