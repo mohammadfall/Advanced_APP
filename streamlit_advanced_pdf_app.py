@@ -377,7 +377,7 @@ def process_students(file_copies, students, mode, allow_download):
                     pdf_paths.append(protected_path)
 
                 if mode == "Drive":
-                    links_msg = "\n".join([f"{i+1}. {link}" for i, link in enumerate(student_links)])
+                    links_msg = "\n".join([f"{i+1}. {os.path.basename(file_name)}\n🔗 {link}" for i, (file_name, link) in enumerate(zip([fc[0] for fc in file_copies], student_links))])
                     message = f"📥 الملفات الخاصة بـ {name}:\n🔑 الباسورد: {password}\n{links_msg}"
                     send_telegram_message(message)
                     send_email_to_student(name, email, password, links_msg, custom_message)
