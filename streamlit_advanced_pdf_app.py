@@ -154,8 +154,10 @@ if not creds or not creds.valid:
                 creds = flow.credentials
                 with open("token.pickle", "wb") as token:
                     pickle.dump(creds, token)
-                st.success("✅ تم الحصول على التوكن بنجاح. الرجاء إعادة تحميل الصفحة.")
-                st.stop()
+                       st.success("✅ تم الحصول على التوكن بنجاح. جاري المتابعة...")
+                       time.sleep(2)
+                       st.experimental_rerun()
+
             except Exception as e:
                 st.error(f"📛 فشل الحصول على التوكن: {e}")
                 st.stop()
