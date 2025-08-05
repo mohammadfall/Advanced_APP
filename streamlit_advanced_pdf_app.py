@@ -148,21 +148,19 @@ if not creds or not creds.valid:
 
         auth_code = st.text_input("🔑 أدخل كود المصادقة (auth code) بعد تسجيل الدخول:")
 
-        if auth_code:
-            try:
-                flow.fetch_token(code=auth_code)
-                creds = flow.credentials
-                with open("token.pickle", "wb") as token:
-                    pickle.dump(creds, token)
-                       st.success("✅ تم الحصول على التوكن بنجاح. جاري المتابعة...")
-                       time.sleep(2)
-                       st.experimental_rerun()
+if auth_code:
+    try:
+        flow.fetch_token(code=auth_code)
+        creds = flow.credentials
+        with open("token.pickle", "wb") as token:
+            pickle.dump(creds, token)
+        st.success("✅ تم الحصول على التوكن بنجاح. جاري المتابعة...")
+        time.sleep(2)
+        st.experimental_rerun()
+    except Exception as e:
+        st.error(f"📛 فشل الحصول على التوكن: {e}")
+        st.stop()
 
-            except Exception as e:
-                st.error(f"📛 فشل الحصول على التوكن: {e}")
-                st.stop()
-        else:
-            st.stop()
 
 # ✅ إنشاء الخدمات بعد التأكد من التوكن
 drive_service = build("drive", "v3", credentials=creds)
