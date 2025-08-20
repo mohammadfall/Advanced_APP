@@ -1,4 +1,8 @@
 # ✅ Advanced PDF Tool by Dr. Alomari (UI + Email + Telegram + QR Code + Preview + Logo)
+# — جاهز مع متصفح Google Drive (مجلدات + ملفات + Breadcrumbs) واختيار متعدد —
+# — يستخدم QR و watermark بالرابط النهائي (precreate + finalize) —
+# — يدعم ZIP أو رفع مباشر إلى Drive + مشاركة تلقائية —
+
 import os
 import re
 import csv
@@ -33,11 +37,11 @@ from bidi.algorithm import get_display
 import gspread
 
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload   # ✅ NEW
+from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 from googleapiclient.errors import HttpError
 from google_auth_oauthlib.flow import Flow
 from google.auth.transport.requests import Request
-import io  # ✅ NEW
+import io
 
 
 # =========================
@@ -106,7 +110,7 @@ TELEGRAM_BOT_TOKEN = st.secrets["TELEGRAM_BOT_TOKEN"]
 TELEGRAM_CHAT_ID = st.secrets["TELEGRAM_CHAT_ID"]
 EMAIL_SENDER = st.secrets["EMAIL_SENDER"]
 EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
-LIB_FOLDER_ID = st.secrets.get("LIB_FOLDER_ID", FOLDER_ID)  # ✅ NEW: فولدر المكتبة الافتراضي
+LIB_FOLDER_ID = st.secrets.get("LIB_FOLDER_ID", FOLDER_ID)  # فولدر المكتبة الافتراضي
 
 # =========================
 # Google Auth (OAuth)
@@ -162,7 +166,7 @@ if not creds or not creds.valid:
                 with open("token.pickle", "wb") as token:
                     pickle.dump(creds, token)
                 st.success("✅ تم الحصول على التوكن بنجاح. جاري المتابعة...")
-                time.sleep(1.5)
+                time.sleep(1.0)
                 st.rerun()
             except Exception as e:
                 st.error(f"📛 فشل الحصول على التوكن: {e}")
@@ -192,10 +196,19 @@ if logo_file:
         st.warning(f"⚠️ تعذر قراءة اللوجو: {e}")
 
 # =========================
-# دوال مكتبة Google Drive (مجلدات + ملفات + تنزيل) ✅ UPDATED
+# دوال Google Drive (مجلدات + ملفات + تنزيل)
 # =========================
-from googleapiclient.http import MediaIoBaseDownload
-import io
+def drive_get_name(drive_service, file_id: str) -> str:
+    """اسم عنصر (ملف/مجلد) من Drive؛ مفيدة لتسمية الجذر في الـ breadcrumbs."""
+    try:
+        meta = drive_service.files().get(
+            fileId=file_id,
+            fields="name",
+            supportsAllDrives=True
+        ).execute()
+        return meta.get("name", "Root")
+    except Exception:
+        return "Root"
 
 def drive_list_children(drive_service, folder_id, query_text="", page_token=None, page_size=50, kind_filter="All"):
     """
@@ -243,6 +256,41 @@ def drive_download_file_bytes(drive_service, file_id):
     fh.seek(0)
     return fh.read()
 
+# =========================
+# اختيار مصدر الملفات (Upload أو مكتبة Drive)
+# =========================
+st.markdown("## 🗂️ مصدر الملفات")
+file_source = st.radio("اختر المصدر:", ["📁 رفع ملفات جديدة", "☁️ اختيار من Google Drive (مكتبتي)"])
+
+sorted_file_copies = []
+
+if file_source.startswith("📁"):
+    # الوضع القديم: رفع من الجهاز
+    uploaded_files = st.file_uploader(
+        "📄 ارفع كل ملفات المادة (PDFs)",
+        type=["pdf"],
+        accept_multiple_files=True,
+        key="file_upload_main"
+    )
+    if uploaded_files:
+        st.markdown("### 🔃 ترتيب الملفات")
+        sort_mode = st.radio("اختر طريقة الترتيب:", ["تلقائي", "يدوي"])
+
+        file_names = [f.name for f in uploaded_files]
+        if sort_mode == "تلقائي":
+            sorted_files = sorted(uploaded_files, key=lambda f: f.name)
+            st.success("✅ تم الترتيب تلقائيًا حسب اسم الملف.")
+        else:
+            custom_order = st.multiselect("🔀 رتب الملفات يدويًا:", file_names, default=file_names)
+            if set(custom_order) == set(file_names):
+                sorted_files = sorted(uploaded_files, key=lambda f: custom_order.index(f.name))
+                st.success("✅ تم تطبيق الترتيب اليدوي بنجاح.")
+            else:
+                st.warning("⚠️ الرجاء التأكد من ترتيب جميع الملفات.")
+                sorted_files = uploaded_files
+
+        # خزّن نسخة bytes لأن Streamlit يغلق الملف بعد القراءة
+        sorted_file_copies = [(file.name, file.read()) for file in sorted_files]
 
 else:
     # ========== متصفح مكتبة Drive مع مجلدات + ملفات ==========
@@ -250,17 +298,17 @@ else:
 
     # إعداد حالة الملاحة (Breadcrumbs)
     if "lib_stack" not in st.session_state:
-        # نبدأ من فولدر المكتبة الافتراضي
-        st.session_state.lib_stack = [(LIB_FOLDER_ID, "Root")]
+        root_name = drive_get_name(drive_service, LIB_FOLDER_ID)
+        st.session_state.lib_stack = [(LIB_FOLDER_ID, root_name or "Root")]  # ابدأ من فولدر المكتبة
 
     curr_id, curr_name = st.session_state.lib_stack[-1]
 
-    # رأس breadcrumbs (أزرار تنقل)
+    # رأس breadcrumbs (آخر 6 مستويات)
     st.markdown("### 🧭 المسار")
-    slice_stack = st.session_state.lib_stack[-6:]  # لو المسار طويل نعرض آخر 6
+    slice_stack = st.session_state.lib_stack[-6:]
     bc_cols = st.columns(len(slice_stack))
     for i, (fid, fname) in enumerate(slice_stack):
-        label = ("🏠" if i == 0 and len(st.session_state.lib_stack)==1 else "📁") + f" {fname}"
+        label = ("🏠 " if i == 0 else "📁 ") + f"{fname}"
         if bc_cols[i].button(label, key=f"bc_{i}_{fid}"):
             idx_global = st.session_state.lib_stack.index((fid, fname))
             st.session_state.lib_stack = st.session_state.lib_stack[:idx_global+1]
@@ -268,13 +316,13 @@ else:
             st.session_state.last_page_tokens = []
             st.rerun()
 
-    # خيارات البحث والفلترة
+    # بحث/فلترة
     st.markdown("### 🔎 بحث وفلترة")
     search_text = st.text_input("ابحث بالاسم (اختياري):", value="")
     kind_filter = st.selectbox("نوع العناصر:", ["All", "PDF", "Images"], index=0)
     page_size = st.selectbox("عدد النتائج بالصفحة:", [20, 50, 100], index=1)
 
-    # إدارة الترقيم داخل السيشن
+    # ترقيم الصفحات
     if "drive_page_token" not in st.session_state:
         st.session_state.drive_page_token = None
     if "last_page_tokens" not in st.session_state:
@@ -300,7 +348,7 @@ else:
         kind_filter=kind_filter
     )
 
-    # تنقل الصفحات
+    # التالي/السابق
     if next_clicked and next_token:
         if st.session_state.drive_page_token:
             st.session_state.last_page_tokens.append(st.session_state.drive_page_token)
@@ -317,7 +365,7 @@ else:
             st.session_state.drive_page_token, page_size, kind_filter
         )
 
-    # عرض المجلدات كبطاقات قابلة للنقر (دخول للمجلد)
+    # المجلدات
     st.markdown("### 📂 المجلدات")
     if not folders:
         st.caption("لا توجد مجلدات في هذا المستوى.")
@@ -331,7 +379,8 @@ else:
                         <div>📁 <b>{f['name']}</b></div>
                         <div style="font-size:12px;color:#666;">ID: {f['id']}</div>
                     </div>
-                    """, unsafe_allow_html=True
+                    """,
+                    unsafe_allow_html=True
                 )
                 if st.button("فتح", key=f"open_{f['id']}"):
                     st.session_state.lib_stack.append((f["id"], f["name"]))
@@ -339,7 +388,7 @@ else:
                     st.session_state.last_page_tokens = []
                     st.rerun()
 
-    # عرض الملفات مع اختيار متعدد
+    # الملفات
     st.markdown("### 📄 الملفات")
     if not files:
         st.warning("لا توجد ملفات مطابقة … غيّر الفلتر أو ادخل مجلدًا آخر.")
@@ -360,13 +409,12 @@ else:
                     fid = id_map[lab]
                     fname = name_map[lab]
                     blob = drive_download_file_bytes(drive_service, fid)
-                    # نتأكد أنه PDF صالح للمعالجة (الوترمارك)
+                    # نتأكد أنه PDF صالح للمعالجة
                     try:
                         _ = PdfReader(BytesIO(blob))
                         drive_file_copies.append((fname, blob))
                     except Exception:
                         st.warning(f"تجاهل '{fname}': ليس PDF صالحًا.")
-
             sorted_file_copies = sorted(drive_file_copies, key=lambda x: x[0])
             st.success(f"تم تجهيز {len(sorted_file_copies)} ملف(ات) من المكتبة.")
 
@@ -683,7 +731,7 @@ if students:
 # =========================
 # زر التشغيل
 # =========================
-# 🔁 عدّلنا الشرط: يشتغل إذا كان في ملفات مختارة (من Upload أو من Drive) + طلاب
+# يشتغل إذا كان في ملفات مختارة (من Upload أو من Drive) + طلاب
 if sorted_file_copies and students:
     if st.button("🚀 بدء العملية"):
         with st.spinner("⏳ جاري تنفيذ العملية..."):
