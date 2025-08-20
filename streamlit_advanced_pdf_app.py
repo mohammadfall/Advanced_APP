@@ -33,10 +33,11 @@ from bidi.algorithm import get_display
 import gspread
 
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
+from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload   # ✅ NEW
 from googleapiclient.errors import HttpError
 from google_auth_oauthlib.flow import Flow
 from google.auth.transport.requests import Request
+import io  # ✅ NEW
 
 
 # =========================
@@ -105,6 +106,7 @@ TELEGRAM_BOT_TOKEN = st.secrets["TELEGRAM_BOT_TOKEN"]
 TELEGRAM_CHAT_ID = st.secrets["TELEGRAM_CHAT_ID"]
 EMAIL_SENDER = st.secrets["EMAIL_SENDER"]
 EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
+LIB_FOLDER_ID = st.secrets.get("LIB_FOLDER_ID", FOLDER_ID)  # ✅ NEW: فولدر المكتبة الافتراضي
 
 # =========================
 # Google Auth (OAuth)
@@ -190,30 +192,161 @@ if logo_file:
         st.warning(f"⚠️ تعذر قراءة اللوجو: {e}")
 
 # =========================
-# رفع ملفات المادة وترتيبها
+# دوال مكتبة Google Drive (بحث/تنزيل) ✅ NEW
 # =========================
-uploaded_files = st.file_uploader("📄 ارفع كل ملفات المادة (PDFs)", type=["pdf"], accept_multiple_files=True, key="file_upload_main")
+def drive_search_pdfs(drive_service, folder_id=None, query_text="", page_token=None, page_size=50):
+    """
+    ترجع ملفات PDF من Drive مع ترقيم صفحات.
+    - folder_id: حصر النتائج بفولدر معين (اختياري).
+    - query_text: نص بحث داخل الاسم (اختياري).
+    """
+    q_parts = ["mimeType='application/pdf'", "trashed=false"]
+    if folder_id:
+        q_parts.append(f"'{folder_id}' in parents")
+    if query_text:
+        # الهروب من الفواصل المفردة
+        safe_q = query_text.replace("'", "\\'")
+        q_parts.append(f"name contains '{safe_q}'")
+    q = " and ".join(q_parts)
+
+    res = drive_service.files().list(
+        q=q,
+        fields="files(id,name,size,modifiedTime),nextPageToken",
+        pageToken=page_token,
+        pageSize=page_size,
+        orderBy="modifiedTime desc"
+    ).execute()
+
+    return res.get("files", []), res.get("nextPageToken")
+
+def drive_download_file_bytes(drive_service, file_id, expected_mime="application/pdf"):
+    """ينزّل ملف من Drive إلى bytes."""
+    request = drive_service.files().get_media(fileId=file_id)
+    fh = io.BytesIO()
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    try:
+        while not done:
+            status, done = downloader.next_chunk()
+        fh.seek(0)
+        return fh.read()
+    except Exception as e:
+        st.warning(f"فشل تنزيل الملف {file_id}: {e}")
+        return None
+
+# =========================
+# اختيار مصدر الملفات (Upload أو مكتبة Drive) ✅ NEW
+# =========================
+st.markdown("## 🗂️ مصدر الملفات")
+file_source = st.radio("اختر المصدر:", ["📁 رفع ملفات جديدة", "☁️ اختيار من Google Drive (مكتبتي)"])
 
 sorted_file_copies = []
-if uploaded_files:
-    st.markdown("### 🔃 ترتيب الملفات")
-    sort_mode = st.radio("اختر طريقة الترتيب:", ["تلقائي", "يدوي"])
 
-    file_names = [f.name for f in uploaded_files]
-    if sort_mode == "تلقائي":
-        sorted_files = sorted(uploaded_files, key=lambda f: f.name)
-        st.success("✅ تم الترتيب تلقائيًا حسب اسم الملف.")
-    else:
-        custom_order = st.multiselect("🔀 رتب الملفات يدويًا:", file_names, default=file_names)
-        if set(custom_order) == set(file_names):
-            sorted_files = sorted(uploaded_files, key=lambda f: custom_order.index(f.name))
-            st.success("✅ تم تطبيق الترتيب اليدوي بنجاح.")
+if file_source.startswith("📁"):
+    # الوضع القديم: رفع من الجهاز
+    uploaded_files = st.file_uploader("📄 ارفع كل ملفات المادة (PDFs)", type=["pdf"], accept_multiple_files=True, key="file_upload_main")
+    if uploaded_files:
+        st.markdown("### 🔃 ترتيب الملفات")
+        sort_mode = st.radio("اختر طريقة الترتيب:", ["تلقائي", "يدوي"])
+
+        file_names = [f.name for f in uploaded_files]
+        if sort_mode == "تلقائي":
+            sorted_files = sorted(uploaded_files, key=lambda f: f.name)
+            st.success("✅ تم الترتيب تلقائيًا حسب اسم الملف.")
         else:
-            st.warning("⚠️ الرجاء التأكد من ترتيب جميع الملفات.")
-            sorted_files = uploaded_files
+            custom_order = st.multiselect("🔀 رتب الملفات يدويًا:", file_names, default=file_names)
+            if set(custom_order) == set(file_names):
+                sorted_files = sorted(uploaded_files, key=lambda f: custom_order.index(f.name))
+                st.success("✅ تم تطبيق الترتيب اليدوي بنجاح.")
+            else:
+                st.warning("⚠️ الرجاء التأكد من ترتيب جميع الملفات.")
+                sorted_files = uploaded_files
 
-    # خزّن نسخة bytes لأن Streamlit يغلق الملف بعد القراءة
-    sorted_file_copies = [(file.name, file.read()) for file in sorted_files]
+        # خزّن نسخة bytes لأن Streamlit يغلق الملف بعد القراءة
+        sorted_file_copies = [(file.name, file.read()) for file in sorted_files]
+
+else:
+    # الوضع الجديد: اختيار من مكتبة Drive
+    st.info("اختر ملفاتك مباشرة من مكتبة Google Drive")
+    lib_folder_id = st.text_input("📂 فولدر المكتبة (اتركه فارغًا لاستخدام LIB_FOLDER_ID أو FOLDER_ID)", value=LIB_FOLDER_ID)
+    search_text = st.text_input("🔎 ابحث بالاسم (اختياري):", value="")
+    page_size = st.selectbox("عدد النتائج بالصفحة:", [20, 50, 100], index=1)
+
+    # إدارة الترقيم داخل السيشن
+    if "drive_page_token" not in st.session_state:
+        st.session_state.drive_page_token = None
+    if "last_page_tokens" not in st.session_state:
+        st.session_state.last_page_tokens = []
+
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        if st.button("🔄 تحديث النتائج"):
+            st.session_state.drive_page_token = None
+            st.session_state.last_page_tokens = []
+
+    with col_b:
+        prev_clicked = st.button("⬅️ السابق", disabled=(len(st.session_state.last_page_tokens) == 0))
+
+    with col_c:
+        next_clicked = st.button("➡️ التالي")
+
+    # جلب الصفحة الحالية
+    files, next_token = drive_search_pdfs(
+        drive_service,
+        folder_id=(lib_folder_id.strip() or None),
+        query_text=search_text.strip(),
+        page_token=st.session_state.drive_page_token,
+        page_size=page_size
+    )
+
+    # تعامل مع أزرار التنقل
+    if next_clicked and next_token:
+        # احفظ التوكن الحالي للرجوع لاحقًا
+        if st.session_state.drive_page_token:
+            st.session_state.last_page_tokens.append(st.session_state.drive_page_token)
+        st.session_state.drive_page_token = next_token
+        files, next_token = drive_search_pdfs(
+            drive_service,
+            folder_id=(lib_folder_id.strip() or None),
+            query_text=search_text.strip(),
+            page_token=st.session_state.drive_page_token,
+            page_size=page_size
+        )
+
+    if prev_clicked and st.session_state.last_page_tokens:
+        # ارجع خطوة للخلف
+        st.session_state.drive_page_token = st.session_state.last_page_tokens.pop()
+        files, next_token = drive_search_pdfs(
+            drive_service,
+            folder_id=(lib_folder_id.strip() or None),
+            query_text=search_text.strip(),
+            page_token=st.session_state.drive_page_token,
+            page_size=page_size
+        )
+
+    # عرض النتائج
+    if not files:
+        st.warning("لا توجد نتائج حالياً … غيّر شروط البحث أو الفولدر.")
+    else:
+        st.caption(f"نتائج: {len(files)} — صفحة Drive حالية")
+        options = [f"{item['name']}  —  {item.get('size','?')} bytes  —  {item.get('modifiedTime','')}" for item in files]
+        id_map = {options[i]: files[i]["id"] for i in range(len(files))}
+        name_map = {options[i]: files[i]["name"] for i in range(len(files))}
+
+        picked = st.multiselect("✅ اختر ملفات PDF:", options)
+
+        if picked:
+            drive_file_copies = []
+            with st.spinner("⏳ تحميل الملفات المختارة من Drive…"):
+                for pick in picked:
+                    fid = id_map[pick]
+                    fname = name_map[pick]
+                    blob = drive_download_file_bytes(drive_service, fid)
+                    if blob:
+                        drive_file_copies.append((fname, blob))
+            # رتّبها حسب الاسم افتراضيًا
+            sorted_file_copies = sorted(drive_file_copies, key=lambda x: x[0])
+            st.success(f"تم تجهيز {len(sorted_file_copies)} ملف(ات) من المكتبة.")
 
 # =========================
 # أدوات إرسال
@@ -328,7 +461,6 @@ def finalize_drive_pdf(file_id: str, final_path: str, allow_download: bool) -> s
         drive_service.files().update(
             fileId=file_id,
             body={
-                # إن أردت منع التحميل/النسخ غيّر إلى False
                 "viewersCanCopyContent": bool(allow_download),
                 "copyRequiresWriterPermission": (not allow_download),
             },
@@ -385,8 +517,7 @@ def create_watermark_page(name: str, link: str, logo_reader=None, font_size=20, 
     try:
         qr_img = generate_qr_code(link)
         c.drawImage(qr_img, width - 80, 15, width=50, height=50)
-    except Exception as e:
-        # لو صار خطأ، فقط تجاهله واستمر
+    except Exception:
         pass
 
     # لوجو اختياري أعلى اليسار
@@ -530,7 +661,8 @@ if students:
 # =========================
 # زر التشغيل
 # =========================
-if uploaded_files and students:
+# 🔁 عدّلنا الشرط: يشتغل إذا كان في ملفات مختارة (من Upload أو من Drive) + طلاب
+if sorted_file_copies and students:
     if st.button("🚀 بدء العملية"):
         with st.spinner("⏳ جاري تنفيذ العملية..."):
             mode = "Drive" if option.startswith("☁️") else "ZIP"
