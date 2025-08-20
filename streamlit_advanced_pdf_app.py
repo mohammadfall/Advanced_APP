@@ -269,7 +269,7 @@ else:
     # الوضع الجديد: اختيار من مكتبة Drive
     st.info("اختر ملفاتك مباشرة من مكتبة Google Drive")
     lib_folder_id = LIB_FOLDER_ID
-        st.caption(f"📂 مكتبة الملفات: {lib_folder_id}")
+    st.caption(f"📂 مكتبة الملفات: {lib_folder_id}")
     search_text = st.text_input("🔎 ابحث بالاسم (اختياري):", value="")
     page_size = st.selectbox("عدد النتائج بالصفحة:", [20, 50, 100], index=1)
 
