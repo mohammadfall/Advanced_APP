@@ -4,7 +4,7 @@ pandas>=2.2
 openpyxl>=3.1
 
 # PDFs & graphics
-PyPDF2>=3.0.1
+pypdf>=4.2.0
 reportlab>=3.6.12
 qrcode>=7.4.2
 Pillow>=10.3.0
