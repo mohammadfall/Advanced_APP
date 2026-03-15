@@ -22,7 +22,8 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from PyPDF2 import PdfReader, PdfWriter
+# تم التحديث إلى pypdf بدلاً من PyPDF2 المهجورة
+from pypdf import PdfReader, PdfWriter
 
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
@@ -42,7 +43,6 @@ from googleapiclient.errors import HttpError
 from google_auth_oauthlib.flow import Flow
 from google.auth.transport.requests import Request
 import io
-
 
 # =========================
 # إعدادات الواجهة والدخول
@@ -110,10 +110,10 @@ TELEGRAM_BOT_TOKEN = st.secrets["TELEGRAM_BOT_TOKEN"]
 TELEGRAM_CHAT_ID = st.secrets["TELEGRAM_CHAT_ID"]
 EMAIL_SENDER = st.secrets["EMAIL_SENDER"]
 EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
-LIB_FOLDER_ID = st.secrets.get("LIB_FOLDER_ID", FOLDER_ID)  # فولدر المكتبة الافتراضي
+LIB_FOLDER_ID = st.secrets.get("LIB_FOLDER_ID", FOLDER_ID)
 
 # =========================
-# Google Auth (OAuth)
+# Google Auth (OAuth) - التعديل الجذري هنا
 # =========================
 SCOPES = [
     "https://www.googleapis.com/auth/drive",
@@ -154,24 +154,30 @@ if not creds or not creds.valid:
             st.error(f"📛 تعذر قراءة client_secret.json: {e}")
             st.stop()
 
-        auth_url, _ = flow.authorization_url(prompt='consent', include_granted_scopes='true')
-        st.markdown(f"[🔐 اضغط هنا لتسجيل الدخول باستخدام Google]({auth_url})")
+        # قراءة البارامترات من رابط المتصفح (الطريقة التلقائية)
+        query_params = st.query_params
 
-        auth_code = st.text_input("🔑 أدخل كود المصادقة (auth code) بعد تسجيل الدخول:")
-
-        if auth_code:
+        if "code" in query_params:
+            auth_code = query_params["code"]
             try:
                 flow.fetch_token(code=auth_code)
                 creds = flow.credentials
                 with open("token.pickle", "wb") as token:
                     pickle.dump(creds, token)
-                st.success("✅ تم الحصول على التوكن بنجاح. جاري المتابعة...")
-                time.sleep(1.0)
+                
+                # تنظيف الرابط بعد نجاح تسجيل الدخول
+                st.query_params.clear()
+                
+                st.success("✅ تم تسجيل الدخول بنجاح! جاري إعداد بيئة العمل...")
+                time.sleep(1.5)
                 st.rerun()
             except Exception as e:
                 st.error(f"📛 فشل الحصول على التوكن: {e}")
                 st.stop()
         else:
+            auth_url, _ = flow.authorization_url(prompt='consent', include_granted_scopes='true')
+            st.markdown(f"### [🔐 اضغط هنا لتسجيل الدخول والمصادقة باستخدام حساب Google]({auth_url})")
+            st.info("بعد تسجيل الدخول، سيتم توجيهك تلقائياً إلى التطبيق ولن تحتاج لإدخال أي كود يدوياً.")
             st.stop()
 
 # إنشاء الخدمات بعد التأكد من التوكن
@@ -199,7 +205,6 @@ if logo_file:
 # دوال Google Drive (مجلدات + ملفات + تنزيل)
 # =========================
 def drive_get_name(drive_service, file_id: str) -> str:
-    """اسم عنصر (ملف/مجلد) من Drive؛ مفيدة لتسمية الجذر في الـ breadcrumbs."""
     try:
         meta = drive_service.files().get(
             fileId=file_id,
@@ -211,19 +216,13 @@ def drive_get_name(drive_service, file_id: str) -> str:
         return "Root"
 
 def drive_list_children(drive_service, folder_id, query_text="", page_token=None, page_size=50, kind_filter="All"):
-    """
-    ترجع (folders, files, next_token) لعناصر الفولدر الحالي.
-    - kind_filter: "All" أو "PDF" أو "Images"
-    """
     base = [f"'{folder_id}' in parents", "trashed=false"]
 
-    # فلتر نوع العنصر
     if kind_filter == "PDF":
         base.append("mimeType='application/pdf'")
     elif kind_filter == "Images":
         base.append("(mimeType contains 'image/')")
 
-    # بحث بالاسم (اختياري)
     if query_text:
         safe_q = query_text.replace("'", "\\'")
         base.append(f"name contains '{safe_q}'")
@@ -246,7 +245,6 @@ def drive_list_children(drive_service, folder_id, query_text="", page_token=None
     return folders, files, res.get("nextPageToken")
 
 def drive_download_file_bytes(drive_service, file_id):
-    """ينزّل أي ملف من Drive كـ bytes (نستخدمه للـ PDFs)."""
     request = drive_service.files().get_media(fileId=file_id, supportsAllDrives=True)
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
@@ -265,7 +263,6 @@ file_source = st.radio("اختر المصدر:", ["📁 رفع ملفات جدي
 sorted_file_copies = []
 
 if file_source.startswith("📁"):
-    # الوضع القديم: رفع من الجهاز
     uploaded_files = st.file_uploader(
         "📄 ارفع كل ملفات المادة (PDFs)",
         type=["pdf"],
@@ -289,21 +286,17 @@ if file_source.startswith("📁"):
                 st.warning("⚠️ الرجاء التأكد من ترتيب جميع الملفات.")
                 sorted_files = uploaded_files
 
-        # خزّن نسخة bytes لأن Streamlit يغلق الملف بعد القراءة
         sorted_file_copies = [(file.name, file.read()) for file in sorted_files]
 
 else:
-    # ========== متصفح مكتبة Drive مع مجلدات + ملفات ==========
     st.info("اختر ملفاتك مباشرة من مكتبة Google Drive")
 
-    # إعداد حالة الملاحة (Breadcrumbs)
     if "lib_stack" not in st.session_state:
         root_name = drive_get_name(drive_service, LIB_FOLDER_ID)
-        st.session_state.lib_stack = [(LIB_FOLDER_ID, root_name or "Root")]  # ابدأ من فولدر المكتبة
+        st.session_state.lib_stack = [(LIB_FOLDER_ID, root_name or "Root")]
 
     curr_id, curr_name = st.session_state.lib_stack[-1]
 
-    # رأس breadcrumbs (آخر 6 مستويات)
     st.markdown("### 🧭 المسار")
     slice_stack = st.session_state.lib_stack[-6:]
     bc_cols = st.columns(len(slice_stack))
@@ -316,13 +309,11 @@ else:
             st.session_state.last_page_tokens = []
             st.rerun()
 
-    # بحث/فلترة
     st.markdown("### 🔎 بحث وفلترة")
     search_text = st.text_input("ابحث بالاسم (اختياري):", value="")
     kind_filter = st.selectbox("نوع العناصر:", ["All", "PDF", "Images"], index=0)
     page_size = st.selectbox("عدد النتائج بالصفحة:", [20, 50, 100], index=1)
 
-    # ترقيم الصفحات
     if "drive_page_token" not in st.session_state:
         st.session_state.drive_page_token = None
     if "last_page_tokens" not in st.session_state:
@@ -338,7 +329,6 @@ else:
     with col_c:
         next_clicked = st.button("➡️ التالي")
 
-    # جلب الصفحة الحالية
     folders, files, next_token = drive_list_children(
         drive_service,
         folder_id=curr_id,
@@ -348,7 +338,6 @@ else:
         kind_filter=kind_filter
     )
 
-    # التالي/السابق
     if next_clicked and next_token:
         if st.session_state.drive_page_token:
             st.session_state.last_page_tokens.append(st.session_state.drive_page_token)
@@ -365,7 +354,6 @@ else:
             st.session_state.drive_page_token, page_size, kind_filter
         )
 
-    # المجلدات
     st.markdown("### 📂 المجلدات")
     if not folders:
         st.caption("لا توجد مجلدات في هذا المستوى.")
@@ -388,7 +376,6 @@ else:
                     st.session_state.last_page_tokens = []
                     st.rerun()
 
-    # الملفات
     st.markdown("### 📄 الملفات")
     if not files:
         st.warning("لا توجد ملفات مطابقة … غيّر الفلتر أو ادخل مجلدًا آخر.")
@@ -409,7 +396,6 @@ else:
                     fid = id_map[lab]
                     fname = name_map[lab]
                     blob = drive_download_file_bytes(drive_service, fid)
-                    # نتأكد أنه PDF صالح للمعالجة
                     try:
                         _ = PdfReader(BytesIO(blob))
                         drive_file_copies.append((fname, blob))
@@ -474,7 +460,6 @@ def create_placeholder_pdf(tmp_path, text="Preparing your protected file..."):
     c.save()
 
 def precreate_drive_pdf(filename: str, email: str):
-    """يرفع PDF بسيط مؤقتًا فقط للحصول على fileId النهائي قبل توليد QR."""
     temp_placeholder = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     create_placeholder_pdf(temp_placeholder.name)
     file_metadata = {
@@ -493,7 +478,6 @@ def precreate_drive_pdf(filename: str, email: str):
         file_id = created["id"]
         link = f"https://drive.google.com/file/d/{file_id}/view"
 
-        # شارك مع الطالب مباشرة (إن وجد إيميل صالح)
         if email and re.match(r"[^@]+@[^@]+\.[^@]+", email.strip()):
             try:
                 drive_service.permissions().create(
@@ -516,7 +500,6 @@ def precreate_drive_pdf(filename: str, email: str):
             pass
 
 def finalize_drive_pdf(file_id: str, final_path: str, allow_download: bool) -> str:
-    """يستبدل محتوى الملف المؤقت بالمحتوى النهائي ويطبق إعدادات التحميل/النسخ."""
     if not file_id:
         return ""
     try:
@@ -527,7 +510,6 @@ def finalize_drive_pdf(file_id: str, final_path: str, allow_download: bool) -> s
             supportsAllDrives=True
         ).execute()
 
-        # ضبط سياسات النسخ/التحميل
         drive_service.files().update(
             fileId=file_id,
             body={
@@ -547,11 +529,9 @@ def create_watermark_page(name: str, link: str, logo_reader=None, font_size=20, 
     c = canvas.Canvas(packet, pagesize=letter)
     width, height = letter
 
-    # النص العربي (اسم الطالب) مع reshape + Bidi
     raw_text = f"خاص بـ {name}"
     bidi_text = get_display(arabic_reshaper.reshape(raw_text))
 
-    # شفافية أو لون فاتح كـ fallback
     try:
         c.setFillAlpha(alpha)
         alpha_supported = True
@@ -560,11 +540,9 @@ def create_watermark_page(name: str, link: str, logo_reader=None, font_size=20, 
 
     c.setFont("Cairo", font_size)
     if not alpha_supported:
-        # fallback بسيط: لون رمادي فاتح (بدون شفافية)
         from reportlab.lib.colors import Color
         c.setFillColor(Color(0.6, 0.6, 0.6))
 
-    # شبكة الوترمارك
     for x in range(0, int(width), spacing):
         for y in range(0, int(height), spacing):
             c.saveState()
@@ -573,24 +551,20 @@ def create_watermark_page(name: str, link: str, logo_reader=None, font_size=20, 
             c.drawString(0, 0, bidi_text)
             c.restoreState()
 
-    # رجّع الإعدادات للكتابة العادية
     if alpha_supported:
         c.setFillAlpha(1)
 
-    # سطر تحذيري سفلي
     small_raw = "هذا الملف محمي ولا يجوز تداوله أو طباعته إلا بإذن خطي"
     small_bidi = get_display(arabic_reshaper.reshape(small_raw))
     c.setFont("Cairo", 8)
     c.drawString(30, 30, small_bidi)
 
-    # QR للرابط النهائي
     try:
         qr_img = generate_qr_code(link)
         c.drawImage(qr_img, width - 80, 15, width=50, height=50)
     except Exception:
         pass
 
-    # لوجو اختياري أعلى اليسار
     if logo_reader:
         try:
             c.drawImage(logo_reader, 20, height - 90, width=70, height=70, mask='auto')
@@ -607,11 +581,10 @@ def apply_pdf_protection(input_path: str, output_path: str, password: str):
     for page in reader.pages:
         writer.add_page(page)
 
-    owner_password = secrets.token_urlsafe(16)  # لا تشاركها مع أحد
+    owner_password = secrets.token_urlsafe(16)
     try:
         writer.encrypt(user_password=password, owner_password=owner_password, use_128bit=True)
     except TypeError:
-        # توافقية مع بعض إصدارات PyPDF2
         writer.encrypt(password, owner_password)
 
     with open(output_path, "wb") as f:
@@ -639,15 +612,13 @@ def process_students(file_copies, students, mode, allow_download, logo_reader=No
                     base_filename = os.path.splitext(file_name)[0]
                     final_name = f"{idx+1:02d} - {safe_name} - {base_filename}.pdf"
 
-                    # 1) في وضع Drive: إنشاء ملف مؤقت على Drive للحصول على fileId + رابط نهائي للـ QR
                     file_id = None
                     drive_link = "https://pdf.alomari.com/placeholder"
                     if mode == "Drive":
                         file_id, drive_link = precreate_drive_pdf(final_name, email)
                         if not file_id:
-                            continue  # انتقل للملف التالي إذا فشل الإنشاء
+                            continue
 
-                    # 2) تجهيز الملفات المؤقتة
                     temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
                     temp_input.write(file_bytes)
                     temp_input.close()
@@ -655,7 +626,6 @@ def process_students(file_copies, students, mode, allow_download, logo_reader=No
                     raw_path = os.path.join(temp_dir, f"{safe_name}_{base_filename}_raw.pdf")
                     protected_path = os.path.join(temp_dir, f"{safe_name}_{base_filename}.pdf")
 
-                    # 3) الوترمارك الآن يستخدم الرابط النهائي الصحيح (drive_link)
                     reader = PdfReader(temp_input.name)
                     writer = PdfWriter()
                     watermark_page = create_watermark_page(name, drive_link, logo_reader=logo_reader)
@@ -667,16 +637,13 @@ def process_students(file_copies, students, mode, allow_download, logo_reader=No
                     with open(raw_path, "wb") as f_out:
                         writer.write(f_out)
 
-                    # 4) حماية
                     apply_pdf_protection(raw_path, protected_path, password)
                     pdf_paths.append(protected_path)
 
-                    # 5) في وضع Drive: حدث الملف نفسه (نفس fileId) بالمحتوى النهائي
                     if mode == "Drive":
                         final_link = finalize_drive_pdf(file_id, protected_path, allow_download)
                         student_links.append(final_link)
 
-                # إرسال تيليجرام وإيميل
                 if mode == "Drive" and student_links:
                     links_msg = "\n".join([
                         f"{i+1}. {os.path.basename(fc[0])}\n🔗 {lnk}"
@@ -688,7 +655,6 @@ def process_students(file_copies, students, mode, allow_download, logo_reader=No
 
                 writer_csv.writerow([name, email, password, " | ".join(student_links)])
 
-                # لوج إلى Google Sheet
                 try:
                     sheet.append_row([name, email, password, " | ".join(student_links), datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
                 except Exception as e:
@@ -731,7 +697,6 @@ if students:
 # =========================
 # زر التشغيل
 # =========================
-# يشتغل إذا كان في ملفات مختارة (من Upload أو من Drive) + طلاب
 if sorted_file_copies and students:
     if st.button("🚀 بدء العملية"):
         with st.spinner("⏳ جاري تنفيذ العملية..."):
@@ -753,7 +718,6 @@ if sorted_file_copies and students:
                 with open(password_file_path, "rb") as f:
                     st.download_button("📄 تحميل ملف كلمات السر والروابط", f.read(), file_name="passwords_and_links.csv")
 
-        # علامة ريفرش لمرة واحدة
         st.session_state["refresh_needed"] = True
 
 # ريفرش بعد الإرسال
