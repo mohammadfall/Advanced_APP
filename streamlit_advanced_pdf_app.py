@@ -113,7 +113,7 @@ EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
 LIB_FOLDER_ID = st.secrets.get("LIB_FOLDER_ID", FOLDER_ID)
 
 # =========================
-# Google Auth (OAuth) - التعديل الجذري هنا
+# Google Auth (OAuth) - التعديل الجذري وحفظ الجلسة
 # =========================
 SCOPES = [
     "https://www.googleapis.com/auth/drive",
@@ -126,6 +126,8 @@ creds = None
 if st.button("🔁 إعادة تسجيل الدخول من جديد"):
     if os.path.exists("token.pickle"):
         os.remove("token.pickle")
+    if "oauth_flow" in st.session_state:
+        del st.session_state["oauth_flow"]
     st.rerun()
 
 # تحميل التوكن إن وجد
@@ -144,17 +146,19 @@ if not creds or not creds.valid:
                 os.remove("token.pickle")
             st.stop()
     else:
-        try:
-            flow = Flow.from_client_secrets_file(
-                "client_secret.json",
-                scopes=SCOPES,
-                redirect_uri="https://advancedapp-version2.streamlit.app/"
-            )
-        except Exception as e:
-            st.error(f"📛 تعذر قراءة client_secret.json: {e}")
-            st.stop()
-
-        # قراءة البارامترات من رابط المتصفح (الطريقة التلقائية)
+        # حفظ كائن Flow في الذاكرة لمنع ضياع الـ verifier
+        if "oauth_flow" not in st.session_state:
+            try:
+                st.session_state["oauth_flow"] = Flow.from_client_secrets_file(
+                    "client_secret.json",
+                    scopes=SCOPES,
+                    redirect_uri="https://advancedapp-version2.streamlit.app/"
+                )
+            except Exception as e:
+                st.error(f"📛 تعذر قراءة client_secret.json: {e}")
+                st.stop()
+        
+        flow = st.session_state["oauth_flow"]
         query_params = st.query_params
 
         if "code" in query_params:
@@ -167,12 +171,15 @@ if not creds or not creds.valid:
                 
                 # تنظيف الرابط بعد نجاح تسجيل الدخول
                 st.query_params.clear()
+                del st.session_state["oauth_flow"]
                 
                 st.success("✅ تم تسجيل الدخول بنجاح! جاري إعداد بيئة العمل...")
                 time.sleep(1.5)
                 st.rerun()
             except Exception as e:
                 st.error(f"📛 فشل الحصول على التوكن: {e}")
+                if "oauth_flow" in st.session_state:
+                    del st.session_state["oauth_flow"]
                 st.stop()
         else:
             auth_url, _ = flow.authorization_url(prompt='consent', include_granted_scopes='true')
