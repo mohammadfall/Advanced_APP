@@ -737,7 +737,7 @@ if sorted_file_copies and students:
 # ريفرش بعد الإرسال
 if "refresh_needed" in st.session_state and st.session_state["refresh_needed"]:
     st.success("✅ تم إرسال الملفات بنجاح! سيتم تحديث الصفحة...")
-    time.sleep(3)
+    time.sleep(20)
     st.session_state["refresh_needed"] = False
     st.rerun()
 
