@@ -112,7 +112,7 @@ EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
 LIB_FOLDER_ID = st.secrets.get("LIB_FOLDER_ID", FOLDER_ID)
 
 # =========================
-# Google Auth (OAuth) - الحل النهائي الجذري
+# Google Auth (OAuth)
 # =========================
 SCOPES = [
     "https://www.googleapis.com/auth/drive",
@@ -160,7 +160,6 @@ if not creds or not creds.valid:
         if "code" in query_params:
             auth_code = query_params["code"]
             try:
-                # 🔴 نقرأ المفتاح السري من الملف بدلاً من الذاكرة المتطايرة
                 if os.path.exists(OAUTH_STATE_FILE):
                     with open(OAUTH_STATE_FILE, "r") as f:
                         state_data = json.load(f)
@@ -172,7 +171,6 @@ if not creds or not creds.valid:
                 with open(TOKEN_FILE, "wb") as token:
                     pickle.dump(creds, token)
                 
-                # تنظيف وتنظيم بعد النجاح
                 st.query_params.clear()
                 if os.path.exists(OAUTH_STATE_FILE):
                     os.remove(OAUTH_STATE_FILE)
@@ -186,7 +184,6 @@ if not creds or not creds.valid:
         else:
             auth_url, _ = flow.authorization_url(prompt='consent', include_granted_scopes='true')
             
-            # 🔴 نحفظ المفتاح السري في ملف ثابت قبل أن نغادر إلى Google
             with open(OAUTH_STATE_FILE, "w") as f:
                 json.dump({"code_verifier": flow.code_verifier}, f)
 
@@ -194,7 +191,6 @@ if not creds or not creds.valid:
             st.info("بعد تسجيل الدخول، سيتم توجيهك تلقائياً إلى التطبيق ولن تحتاج لإدخال أي كود يدوياً.")
             st.stop()
 
-# إنشاء الخدمات بعد التأكد من التوكن
 try:
     drive_service = build("drive", "v3", credentials=creds)
     gc = gspread.authorize(creds)
@@ -269,7 +265,7 @@ def drive_download_file_bytes(drive_service, file_id):
     return fh.read()
 
 # =========================
-# اختيار مصدر الملفات (Upload أو مكتبة Drive)
+# اختيار مصدر الملفات
 # =========================
 st.markdown("## 🗂️ مصدر الملفات")
 file_source = st.radio("اختر المصدر:", ["📁 رفع ملفات جديدة", "☁️ اختيار من Google Drive (مكتبتي)"])
@@ -436,7 +432,6 @@ def send_email_to_student(name, email, password, link_block_text, extra_message=
         msg["To"] = email
         msg["Subject"] = "🔐 ملفاتك الجامعية جاهزة - eLite Acadimea"
 
-        # تحويل الروابط النصية إلى أزرار HTML مرتبة
         links_html = link_block_text.replace("\n", "<br>")
         links_html = re.sub(r"(https?://[^\s<]+)", r'<a href="\1" style="display: inline-block; padding: 5px 10px; margin-top: 5px; background-color: #0056b3; color: white; text-decoration: none; border-radius: 4px; font-size: 14px;">فتح الملف 🔗</a>', links_html)
 
@@ -445,7 +440,23 @@ def send_email_to_student(name, email, password, link_block_text, extra_message=
         else:
             extra_html = ""
 
-        # تصميم الإيميل (HTML) الأنيق
+        # تحديد شكل صندوق كلمة المرور بناءً على وجودها
+        if password:
+            password_section = f"""
+            <div style="background-color: #f8eaeb; border-right: 5px solid #d9534f; padding: 15px; margin: 25px 0; border-radius: 4px; text-align: center;">
+                <p style="margin: 0; font-size: 16px; color: #333;">🔑 <strong>كلمة المرور لفتح الملفات:</strong></p>
+                <p style="margin: 10px auto 5px auto; font-size: 24px; color: #d9534f; font-weight: bold; direction: ltr; background: white; padding: 12px; border-radius: 6px; border: 2px dashed #d9534f; display: inline-block; font-family: monospace; -webkit-user-select: all; user-select: all;">{password}</p>
+                <p style="margin: 0; font-size: 12px; color: #888;">(انقر مرتين على الكلمة لتحديدها ونسخها)</p>
+            </div>
+            """
+        else:
+            password_section = f"""
+            <div style="background-color: #e2f0e6; border-right: 5px solid #28a745; padding: 15px; margin: 25px 0; border-radius: 4px; text-align: center;">
+                <p style="margin: 0; font-size: 16px; color: #333;">🔓 <strong>حالة الملفات:</strong></p>
+                <p style="margin: 10px auto 0 auto; font-size: 18px; color: #28a745; font-weight: bold;">الملفات مفتوحة ولا تحتاج إلى كلمة مرور</p>
+            </div>
+            """
+
         html_body = f"""
         <div dir="rtl" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; padding: 30px;">
             <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
@@ -456,12 +467,9 @@ def send_email_to_student(name, email, password, link_block_text, extra_message=
                 
                 <div style="padding: 30px;">
                     <p style="font-size: 18px; color: #333;">مرحباً <strong>{name}</strong>،</p>
-                    <p style="font-size: 16px; color: #555; line-height: 1.6;">تم تجهيز وتشفير ملفاتك بنجاح. يرجى العلم أن هذه الملفات محمية بحقوق النشر ومخصصة لك فقط.</p>
+                    <p style="font-size: 16px; color: #555; line-height: 1.6;">تم تجهيز ملفاتك بنجاح. يرجى العلم أن هذه الملفات محمية بحقوق النشر ومخصصة لك فقط.</p>
 
-                    <div style="background-color: #f8eaeb; border-right: 5px solid #d9534f; padding: 15px; margin: 25px 0; border-radius: 4px;">
-                        <p style="margin: 0; font-size: 16px; color: #333;">🔑 <strong>كلمة المرور لفتح الملفات:</strong></p>
-                        <p style="margin: 10px 0 0 0; font-size: 22px; color: #d9534f; font-weight: bold; text-align: center; direction: ltr; background: white; padding: 10px; border-radius: 4px; border: 1px dashed #d9534f;">{password}</p>
-                    </div>
+                    {password_section}
 
                     <h3 style="color: #0056b3; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 30px;">📎 روابط الملفات:</h3>
                     <div style="line-height: 1.8; font-size: 16px; color: #444;">
@@ -527,7 +535,7 @@ def precreate_drive_pdf(filename: str, email: str):
                 drive_service.permissions().create(
                     fileId=file_id,
                     body={"type": "user", "role": "reader", "emailAddress": email.strip()},
-                    sendNotificationEmail=False,  # 🔴 منع إرسال إشعار جوجل الافتراضي
+                    sendNotificationEmail=False,
                     supportsAllDrives=True
                 ).execute()
             except HttpError as pe:
@@ -625,11 +633,13 @@ def apply_pdf_protection(input_path: str, output_path: str, password: str):
     for page in reader.pages:
         writer.add_page(page)
 
-    owner_password = secrets.token_urlsafe(16)
-    try:
-        writer.encrypt(user_password=password, owner_password=owner_password, use_128bit=True)
-    except TypeError:
-        writer.encrypt(password, owner_password)
+    # التشفير يتم فقط إذا تم تمرير كلمة مرور
+    if password:
+        owner_password = secrets.token_urlsafe(16)
+        try:
+            writer.encrypt(user_password=password, owner_password=owner_password, use_128bit=True)
+        except TypeError:
+            writer.encrypt(password, owner_password)
 
     with open(output_path, "wb") as f:
         writer.write(f)
@@ -637,7 +647,7 @@ def apply_pdf_protection(input_path: str, output_path: str, password: str):
 # =========================
 # المعالجة الرئيسية للطلاب
 # =========================
-def process_students(file_copies, students, mode, allow_download, logo_reader=None):
+def process_students(file_copies, students, mode, allow_download, enable_password, logo_reader=None):
     temp_dir = tempfile.mkdtemp()
     password_file_path = os.path.join(temp_dir, "passwords_and_links.csv")
     pdf_paths = []
@@ -649,8 +659,15 @@ def process_students(file_copies, students, mode, allow_download, logo_reader=No
         for idx, (name, email) in enumerate(students):
             with st.spinner(f"🔄 جاري المعالجة: {name} ({idx+1}/{len(students)})"):
                 safe_name = name.replace(" ", "_").replace("+", "plus")
-                # تعديل كلمة المرور لتكون متوافقة مع المنصة الجديدة
-                password = name.replace(" ", "") + "@elite"
+                
+                # تحديد كلمة المرور بناءً على اختيار المستخدم
+                if enable_password:
+                    pdf_password = name.replace(" ", "") + "@elite"
+                    display_password = pdf_password
+                else:
+                    pdf_password = ""
+                    display_password = "بدون باسورد"
+
                 student_links = []
 
                 for file_name, file_bytes in file_copies:
@@ -682,7 +699,7 @@ def process_students(file_copies, students, mode, allow_download, logo_reader=No
                     with open(raw_path, "wb") as f_out:
                         writer.write(f_out)
 
-                    apply_pdf_protection(raw_path, protected_path, password)
+                    apply_pdf_protection(raw_path, protected_path, pdf_password)
                     pdf_paths.append(protected_path)
 
                     if mode == "Drive":
@@ -694,14 +711,20 @@ def process_students(file_copies, students, mode, allow_download, logo_reader=No
                         f"{i+1}. {os.path.basename(fc[0])}\n🔗 {lnk}"
                         for i, (fc, lnk) in enumerate(zip(file_copies, student_links))
                     ])
-                    message = f"📥 الملفات الخاصة بـ {name}:\n🔑 الباسورد: {password}\n{links_msg}"
+                    
+                    # تعديل رسالة التيليجرام حسب التشفير
+                    if enable_password:
+                        message = f"📥 الملفات الخاصة بـ {name}:\n🔑 الباسورد: {display_password}\n{links_msg}"
+                    else:
+                        message = f"📥 الملفات الخاصة بـ {name}:\n🔓 (بدون باسورد)\n{links_msg}"
+                        
                     send_telegram_message(message)
-                    send_email_to_student(name, email, password, links_msg, custom_message)
+                    send_email_to_student(name, email, pdf_password, links_msg, custom_message)
 
-                writer_csv.writerow([name, email, password, " | ".join(student_links)])
+                writer_csv.writerow([name, email, display_password, " | ".join(student_links)])
 
                 try:
-                    sheet.append_row([name, email, password, " | ".join(student_links), datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+                    sheet.append_row([name, email, display_password, " | ".join(student_links), datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
                 except Exception as e:
                     st.warning(f"⚠️ فشل إضافة صف إلى Google Sheet: {e}")
 
@@ -731,6 +754,7 @@ else:
 
 option = st.radio("اختيار طريقة الإخراج:", ["📦 تحميل ZIP", "☁️ رفع إلى Google Drive + مشاركة تلقائية"])
 allow_download = st.checkbox("✅ السماح بتنزيل الملف من Google Drive", value=False)
+enable_password = st.checkbox("🔐 حماية الملفات بكلمة مرور (تشفير PDF)", value=True)
 
 if students:
     st.markdown("---")
@@ -748,7 +772,7 @@ if sorted_file_copies and students:
             mode = "Drive" if option.startswith("☁️") else "ZIP"
             file_copies = sorted_file_copies
             pdf_paths, password_file_path, temp_dir = process_students(
-                file_copies, students, mode, allow_download, logo_reader=logo_reader
+                file_copies, students, mode, allow_download, enable_password, logo_reader=logo_reader
             )
 
             if mode == "ZIP":
@@ -763,7 +787,6 @@ if sorted_file_copies and students:
                 with open(password_file_path, "rb") as f:
                     st.download_button("📄 تحميل ملف كلمات السر والروابط", f.read(), file_name="passwords_and_links.csv")
 
-            # 🔴 رسالة ثبات: لن يتم التحديث التلقائي للصفحة حتى تقوم بتحميل الملف
             st.success("✅ اكتملت العملية بنجاح! تم إرسال الملفات للطلاب، يمكنك الآن تحميل الملفات عبر الزر أعلاه.")
 
 st.markdown("---")
