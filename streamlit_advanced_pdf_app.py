@@ -22,7 +22,6 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-# تم التحديث إلى pypdf بدلاً من PyPDF2 المهجورة
 from pypdf import PdfReader, PdfWriter
 
 from reportlab.pdfgen import canvas
@@ -113,7 +112,7 @@ EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
 LIB_FOLDER_ID = st.secrets.get("LIB_FOLDER_ID", FOLDER_ID)
 
 # =========================
-# Google Auth (OAuth) - التعديل الجذري وحفظ الجلسة
+# Google Auth (OAuth) - الحل النهائي الجذري
 # =========================
 SCOPES = [
     "https://www.googleapis.com/auth/drive",
@@ -121,68 +120,76 @@ SCOPES = [
 ]
 
 creds = None
+OAUTH_STATE_FILE = "oauth_state.json"
+TOKEN_FILE = "token.pickle"
 
-# زر إعادة تسجيل الدخول
 if st.button("🔁 إعادة تسجيل الدخول من جديد"):
-    if os.path.exists("token.pickle"):
-        os.remove("token.pickle")
-    if "oauth_flow" in st.session_state:
-        del st.session_state["oauth_flow"]
+    if os.path.exists(TOKEN_FILE):
+        os.remove(TOKEN_FILE)
+    if os.path.exists(OAUTH_STATE_FILE):
+        os.remove(OAUTH_STATE_FILE)
+    st.query_params.clear()
     st.rerun()
 
-# تحميل التوكن إن وجد
-if os.path.exists("token.pickle"):
-    with open("token.pickle", "rb") as token:
+if os.path.exists(TOKEN_FILE):
+    with open(TOKEN_FILE, "rb") as token:
         creds = pickle.load(token)
 
-# بدء المصادقة إذا التوكن غير موجود/غير صالح
 if not creds or not creds.valid:
     if creds and creds.expired and creds.refresh_token:
         try:
             creds.refresh(Request())
         except Exception as e:
             st.error(f"📛 فشل تحديث التوكن: {e}")
-            if os.path.exists("token.pickle"):
-                os.remove("token.pickle")
+            if os.path.exists(TOKEN_FILE):
+                os.remove(TOKEN_FILE)
             st.stop()
     else:
-        # حفظ كائن Flow في الذاكرة لمنع ضياع الـ verifier
-        if "oauth_flow" not in st.session_state:
-            try:
-                st.session_state["oauth_flow"] = Flow.from_client_secrets_file(
-                    "client_secret.json",
-                    scopes=SCOPES,
-                    redirect_uri="https://advancedapp-version2.streamlit.app/"
-                )
-            except Exception as e:
-                st.error(f"📛 تعذر قراءة client_secret.json: {e}")
-                st.stop()
-        
-        flow = st.session_state["oauth_flow"]
+        try:
+            flow = Flow.from_client_secrets_file(
+                "client_secret.json",
+                scopes=SCOPES,
+                redirect_uri="https://advancedapp-version2.streamlit.app/"
+            )
+        except Exception as e:
+            st.error(f"📛 تعذر قراءة client_secret.json: {e}")
+            st.stop()
+
         query_params = st.query_params
 
         if "code" in query_params:
             auth_code = query_params["code"]
             try:
+                # 🔴 نقرأ المفتاح السري من الملف بدلاً من الذاكرة المتطايرة
+                if os.path.exists(OAUTH_STATE_FILE):
+                    with open(OAUTH_STATE_FILE, "r") as f:
+                        state_data = json.load(f)
+                        flow.code_verifier = state_data.get("code_verifier")
+
                 flow.fetch_token(code=auth_code)
                 creds = flow.credentials
-                with open("token.pickle", "wb") as token:
+                
+                with open(TOKEN_FILE, "wb") as token:
                     pickle.dump(creds, token)
                 
-                # تنظيف الرابط بعد نجاح تسجيل الدخول
+                # تنظيف وتنظيم بعد النجاح
                 st.query_params.clear()
-                del st.session_state["oauth_flow"]
+                if os.path.exists(OAUTH_STATE_FILE):
+                    os.remove(OAUTH_STATE_FILE)
                 
                 st.success("✅ تم تسجيل الدخول بنجاح! جاري إعداد بيئة العمل...")
                 time.sleep(1.5)
                 st.rerun()
             except Exception as e:
                 st.error(f"📛 فشل الحصول على التوكن: {e}")
-                if "oauth_flow" in st.session_state:
-                    del st.session_state["oauth_flow"]
                 st.stop()
         else:
             auth_url, _ = flow.authorization_url(prompt='consent', include_granted_scopes='true')
+            
+            # 🔴 نحفظ المفتاح السري في ملف ثابت قبل أن نغادر إلى Google
+            with open(OAUTH_STATE_FILE, "w") as f:
+                json.dump({"code_verifier": flow.code_verifier}, f)
+
             st.markdown(f"### [🔐 اضغط هنا لتسجيل الدخول والمصادقة باستخدام حساب Google]({auth_url})")
             st.info("بعد تسجيل الدخول، سيتم توجيهك تلقائياً إلى التطبيق ولن تحتاج لإدخال أي كود يدوياً.")
             st.stop()
