@@ -1,7 +1,7 @@
-# ✅ Advanced PDF Tool by Dr. Alomari (UI + Email + Telegram + QR Code + Preview + Logo)
+# ✅ Advanced PDF Tool by eLite Acadimea (UI + HTML Email + Telegram + QR Code + Preview + Logo)
 # — جاهز مع متصفح Google Drive (مجلدات + ملفات + Breadcrumbs) واختيار متعدد —
 # — يستخدم QR و watermark بالرابط النهائي (precreate + finalize) —
-# — يدعم ZIP أو رفع مباشر إلى Drive + مشاركة تلقائية —
+# — يدعم ZIP أو رفع مباشر إلى Drive + مشاركة تلقائية (بدون إشعار جوجل المزعج) —
 
 import os
 import re
@@ -46,8 +46,8 @@ import io
 # =========================
 # إعدادات الواجهة والدخول
 # =========================
-st.set_page_config(page_title="🔐 Alomari PDF Protector", layout="wide")
-st.title("🔐 نظام الحماية الذكي - د. محمد العمري")
+st.set_page_config(page_title="🔐 eLite Acadimea PDF Protector", layout="wide")
+st.title("🔐 نظام الحماية الذكي - eLite Acadimea")
 
 ACCESS_KEY = st.secrets["ACCESS_KEY"]
 code = st.text_input("🔑 أدخل رمز الدخول:", type="password")
@@ -434,21 +434,51 @@ def send_email_to_student(name, email, password, link_block_text, extra_message=
         msg = MIMEMultipart()
         msg["From"] = EMAIL_SENDER
         msg["To"] = email
-        msg["Subject"] = "🔐 ملفك من فريق د. محمد العمري"
+        msg["Subject"] = "🔐 ملفاتك الجامعية جاهزة - eLite Acadimea"
 
-        body = f"""مرحبًا {name},
+        # تحويل الروابط النصية إلى أزرار HTML مرتبة
+        links_html = link_block_text.replace("\n", "<br>")
+        links_html = re.sub(r"(https?://[^\s<]+)", r'<a href="\1" style="display: inline-block; padding: 5px 10px; margin-top: 5px; background-color: #0056b3; color: white; text-decoration: none; border-radius: 4px; font-size: 14px;">فتح الملف 🔗</a>', links_html)
 
-📎 روابط الملفات:
-{link_block_text}
-
-🔑 كلمة المرور: {password}
-
-⚠️ الملفات خاصة بك فقط. لا تشاركها مع الآخرين.
-"""
         if extra_message.strip():
-            body += f"\n📩 ملاحظة من الدكتور:\n{extra_message.strip()}"
+            extra_html = f'<div style="background-color: #fff3cd; color: #856404; padding: 15px; border-left: 4px solid #ffeeba; margin-top: 20px; border-radius: 4px;"><strong>📩 ملاحظة من الإدارة:</strong><br>{extra_message.strip()}</div>'
+        else:
+            extra_html = ""
 
-        msg.attach(MIMEText(body, "plain"))
+        # تصميم الإيميل (HTML) الأنيق
+        html_body = f"""
+        <div dir="rtl" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; padding: 30px;">
+            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                
+                <div style="background-color: #0056b3; color: white; padding: 25px; text-align: center;">
+                    <h2 style="margin: 0; font-size: 26px;">eLite Acadimea 🎓</h2>
+                </div>
+                
+                <div style="padding: 30px;">
+                    <p style="font-size: 18px; color: #333;">مرحباً <strong>{name}</strong>،</p>
+                    <p style="font-size: 16px; color: #555; line-height: 1.6;">تم تجهيز وتشفير ملفاتك بنجاح. يرجى العلم أن هذه الملفات محمية بحقوق النشر ومخصصة لك فقط.</p>
+
+                    <div style="background-color: #f8eaeb; border-right: 5px solid #d9534f; padding: 15px; margin: 25px 0; border-radius: 4px;">
+                        <p style="margin: 0; font-size: 16px; color: #333;">🔑 <strong>كلمة المرور لفتح الملفات:</strong></p>
+                        <p style="margin: 10px 0 0 0; font-size: 22px; color: #d9534f; font-weight: bold; text-align: center; direction: ltr; background: white; padding: 10px; border-radius: 4px; border: 1px dashed #d9534f;">{password}</p>
+                    </div>
+
+                    <h3 style="color: #0056b3; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 30px;">📎 روابط الملفات:</h3>
+                    <div style="line-height: 1.8; font-size: 16px; color: #444;">
+                        {links_html}
+                    </div>
+
+                    {extra_html}
+                </div>
+                
+                <div style="background-color: #f8f9fa; padding: 15px; text-align: center; color: #888; font-size: 13px; border-top: 1px solid #eee;">
+                    © {datetime.now().year} جميع الحقوق محفوظة - منصة eLite Acadimea
+                </div>
+            </div>
+        </div>
+        """
+
+        msg.attach(MIMEText(html_body, "html"))
         with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as server:
             server.starttls()
             server.login(EMAIL_SENDER, EMAIL_PASSWORD)
@@ -497,7 +527,7 @@ def precreate_drive_pdf(filename: str, email: str):
                 drive_service.permissions().create(
                     fileId=file_id,
                     body={"type": "user", "role": "reader", "emailAddress": email.strip()},
-                    sendNotificationEmail=True,
+                    sendNotificationEmail=False,  # 🔴 منع إرسال إشعار جوجل الافتراضي
                     supportsAllDrives=True
                 ).execute()
             except HttpError as pe:
@@ -619,7 +649,8 @@ def process_students(file_copies, students, mode, allow_download, logo_reader=No
         for idx, (name, email) in enumerate(students):
             with st.spinner(f"🔄 جاري المعالجة: {name} ({idx+1}/{len(students)})"):
                 safe_name = name.replace(" ", "_").replace("+", "plus")
-                password = name.replace(" ", "") + "@alomari"
+                # تعديل كلمة المرور لتكون متوافقة مع المنصة الجديدة
+                password = name.replace(" ", "") + "@elite"
                 student_links = []
 
                 for file_name, file_bytes in file_copies:
@@ -627,7 +658,7 @@ def process_students(file_copies, students, mode, allow_download, logo_reader=No
                     final_name = f"{idx+1:02d} - {safe_name} - {base_filename}.pdf"
 
                     file_id = None
-                    drive_link = "https://pdf.alomari.com/placeholder"
+                    drive_link = "https://pdf.eliteacadimea.com/placeholder"
                     if mode == "Drive":
                         file_id, drive_link = precreate_drive_pdf(final_name, email)
                         if not file_id:
@@ -732,14 +763,8 @@ if sorted_file_copies and students:
                 with open(password_file_path, "rb") as f:
                     st.download_button("📄 تحميل ملف كلمات السر والروابط", f.read(), file_name="passwords_and_links.csv")
 
-        st.session_state["refresh_needed"] = True
-
-# ريفرش بعد الإرسال
-if "refresh_needed" in st.session_state and st.session_state["refresh_needed"]:
-    st.success("✅ تم إرسال الملفات بنجاح! سيتم تحديث الصفحة...")
-    time.sleep(20)
-    st.session_state["refresh_needed"] = False
-    st.rerun()
+            # 🔴 رسالة ثبات: لن يتم التحديث التلقائي للصفحة حتى تقوم بتحميل الملف
+            st.success("✅ اكتملت العملية بنجاح! تم إرسال الملفات للطلاب، يمكنك الآن تحميل الملفات عبر الزر أعلاه.")
 
 st.markdown("---")
-st.caption("🛡️ تم تطوير هذا النظام بواسطة د. محمد العمري - جميع الحقوق محفوظة")
+st.caption("🛡️ تم تطوير هذا النظام بواسطة د. محمد العمري - جميع الحقوق محفوظة لـ eLite Acadimea")
