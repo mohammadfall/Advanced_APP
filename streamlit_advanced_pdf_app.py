@@ -652,7 +652,7 @@ def process_students(file_copies, students, mode, allow_download, enable_passwor
     password_file_path = os.path.join(temp_dir, "passwords_and_links.csv")
     pdf_paths = []
     
-    # 🔴 مصفوفة لتجميع البيانات لإرسالها دفعة واحدة للشيت
+    # مصفوفة لتجميع البيانات
     sheet_data_to_append = [] 
 
     with open(password_file_path, mode="w", newline="", encoding="utf-8") as pw_file:
@@ -715,7 +715,6 @@ def process_students(file_copies, students, mode, allow_download, enable_passwor
                         for i, (fc, lnk) in enumerate(zip(file_copies, student_links))
                     ])
                     
-                    # تعديل رسالة التيليجرام حسب التشفير
                     if enable_password:
                         message = f"📥 الملفات الخاصة بـ {name}:\n🔑 الباسورد: {display_password}\n{links_msg}"
                     else:
@@ -726,19 +725,20 @@ def process_students(file_copies, students, mode, allow_download, enable_passwor
 
                 writer_csv.writerow([name, email, display_password, " | ".join(student_links)])
 
-                # 🔴 تخزين بيانات الطالب في المصفوفة (لن نرسلها الآن)
+                # تخزين بيانات الطالب في المصفوفة
                 sheet_data_to_append.append([name, email, display_password, " | ".join(student_links), datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
 
-    # 🔴 بعد الانتهاء من جميع الطلاب (خارج اللوب)، نرسل كل البيانات للشيت دفعة واحدة!
+    # 🔴 الإضافة إلى الشيت بشكل متسلسل وآمن لتجنب تداخل الجداول
     if sheet_data_to_append:
-        try:
-            # استخدمنا append_rows (بالجمع) بدلاً من append_row
-            sheet.append_rows(sheet_data_to_append)
-        except Exception as e:
-            st.warning(f"⚠️ فشل إضافة البيانات إلى Google Sheet: {e}")
+        with st.spinner("⏳ جاري حفظ السجل في Google Sheets..."):
+            for row_data in sheet_data_to_append:
+                try:
+                    sheet.append_row(row_data)
+                    time.sleep(1.5)  # تأخير ثانية ونصف لمنع حظر Google
+                except Exception as e:
+                    st.warning(f"⚠️ فشل إضافة بيانات الطالب {row_data[0]} إلى الشيت: {e}")
 
     return pdf_paths, password_file_path, temp_dir
-
 # =========================
 # واجهة إدخال الطلاب
 # =========================
