@@ -651,6 +651,9 @@ def process_students(file_copies, students, mode, allow_download, enable_passwor
     temp_dir = tempfile.mkdtemp()
     password_file_path = os.path.join(temp_dir, "passwords_and_links.csv")
     pdf_paths = []
+    
+    # 🔴 مصفوفة لتجميع البيانات لإرسالها دفعة واحدة للشيت
+    sheet_data_to_append = [] 
 
     with open(password_file_path, mode="w", newline="", encoding="utf-8") as pw_file:
         writer_csv = csv.writer(pw_file)
@@ -723,10 +726,16 @@ def process_students(file_copies, students, mode, allow_download, enable_passwor
 
                 writer_csv.writerow([name, email, display_password, " | ".join(student_links)])
 
-                try:
-                    sheet.append_row([name, email, display_password, " | ".join(student_links), datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
-                except Exception as e:
-                    st.warning(f"⚠️ فشل إضافة صف إلى Google Sheet: {e}")
+                # 🔴 تخزين بيانات الطالب في المصفوفة (لن نرسلها الآن)
+                sheet_data_to_append.append([name, email, display_password, " | ".join(student_links), datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+
+    # 🔴 بعد الانتهاء من جميع الطلاب (خارج اللوب)، نرسل كل البيانات للشيت دفعة واحدة!
+    if sheet_data_to_append:
+        try:
+            # استخدمنا append_rows (بالجمع) بدلاً من append_row
+            sheet.append_rows(sheet_data_to_append)
+        except Exception as e:
+            st.warning(f"⚠️ فشل إضافة البيانات إلى Google Sheet: {e}")
 
     return pdf_paths, password_file_path, temp_dir
 
