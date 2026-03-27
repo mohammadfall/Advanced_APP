@@ -4,7 +4,7 @@
 # — استئناف ذكي عند الفشل (Checkpoints) + صلاحية روابط مؤقتة —
 # — استخراج ذكي للأسماء والإيميلات (Smart Regex) —
 # — إخراج ZIP احترافي (مجلدات بأسماء الطلاب) —
-# — واجهة عمل بنظام الخطوات (Wizard Tabs) لشاشة نظيفة واحترافية —
+# — واجهة عمل بنظام الخطوات (Wizard Tabs) + أزرار تنقل ذكية —
 
 import os
 import re
@@ -20,6 +20,7 @@ from zipfile import ZipFile
 from datetime import datetime, timedelta
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import requests
 import smtplib
@@ -52,6 +53,23 @@ import io
 # =========================
 st.set_page_config(page_title="🔐 eLite Acadimea PDF Protector", layout="wide")
 st.title("🔐 نظام الحماية الذكي - eLite Acadimea")
+
+# =========================
+# دالة الانتقال بين التبويبات بذكاء (JS Hack)
+# =========================
+def switch_tab(tab_index):
+    components.html(
+        f"""
+        <script>
+        const tabs = window.parent.document.querySelectorAll('button[data-baseweb="tab"]');
+        if (tabs && tabs.length > {tab_index}) {{
+            tabs[{tab_index}].click();
+        }}
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
 
 # =========================
 # أسرار التطبيق (secrets)
@@ -235,7 +253,7 @@ tab_files, tab_students, tab_settings, tab_run = st.tabs([
     "🚀 4. التنفيذ والإخراج"
 ])
 
-# متغيرات عامة لحفظ القيم بين التبويبات
+# متغيرات عامة لحفظ القيم
 sorted_file_copies = []
 students = []
 
@@ -356,6 +374,11 @@ with tab_files:
                 sorted_file_copies = sorted(drive_file_copies, key=lambda x: x[0])
                 st.success(f"تم تجهيز {len(sorted_file_copies)} ملف(ات) بنجاح.")
 
+    # زر الانتقال للخطوة التالية
+    st.markdown("<br><hr>", unsafe_allow_html=True)
+    if st.button("✅ الخطوة التالية: قائمة الطلاب ⬅️", use_container_width=True, type="secondary"):
+        switch_tab(1)
+
 # =========================
 # التبويب الثاني: قائمة الطلاب
 # =========================
@@ -380,6 +403,12 @@ with tab_students:
         st.subheader("👁️‍🗨️ معاينة البيانات المستخرجة")
         st.dataframe(pd.DataFrame(students, columns=["الاسم (المنظف)", "الإيميل (المستخرج)"]), use_container_width=True)
         st.success(f"📊 تم التعرف بنجاح على: {len(students)} طالب.")
+
+    # أزرار التنقل
+    st.markdown("<br><hr>", unsafe_allow_html=True)
+    col_back1, col_next1 = st.columns(2)
+    if col_back1.button("➡️ السابق: مصدر الملفات", use_container_width=True): switch_tab(0)
+    if col_next1.button("✅ الخطوة التالية: الإعدادات ⬅️", use_container_width=True, type="secondary"): switch_tab(2)
 
 # =========================
 # التبويب الثالث: الإعدادات والتخصيص
@@ -420,7 +449,13 @@ with tab_settings:
             wm_spacing = st.slider("المسافة بين التكرارات (Spacing):", min_value=50, max_value=600, value=200, step=10)
             wm_angle = st.slider("زاوية الميلان (Rotation):", min_value=0, max_value=90, value=35, step=1)
         st.markdown("---")
-        show_qr_footer = st.checkbox("✅ إظهار كود الـ QR وحقوق النشر أسفل كل صفحة (بحجم صغير لمنع تداخل الأسئلة)", value=True)
+        show_qr_footer = st.checkbox("✅ إظهار كود الـ QR وحقوق النشر أسفل كل صفحة", value=True)
+
+    # أزرار التنقل
+    st.markdown("<br><hr>", unsafe_allow_html=True)
+    col_back2, col_next2 = st.columns(2)
+    if col_back2.button("➡️ السابق: قائمة الطلاب", use_container_width=True): switch_tab(1)
+    if col_next2.button("🚀 الخطوة الأخيرة: التنفيذ والإخراج ⬅️", use_container_width=True, type="primary"): switch_tab(3)
 
 # =========================
 # دوال التوليد والـ PDF 
@@ -717,6 +752,10 @@ with tab_run:
 
                 st.success("🎉 اكتملت العملية بنجاح! تم تجهيز الملفات بإحترافية عالية، يمكنك الآن تحميلها عبر الزر أعلاه.")
                 st.balloons()
+
+    # زر رجوع للإعدادات
+    st.markdown("<br><hr>", unsafe_allow_html=True)
+    if st.button("➡️ السابق: الإعدادات والتخصيص", use_container_width=True): switch_tab(2)
 
 st.markdown("---")
 st.caption("🛡️ تم تطوير هذا النظام بواسطة د. محمد العمري - جميع الحقوق محفوظة لـ eLite Acadimea")
