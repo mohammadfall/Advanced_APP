@@ -1,9 +1,9 @@
-# ✅ Advanced PDF Tool by eLite Acadimea (Pro Edition)
-# — جاهز مع متصفح Google Drive (مجلدات + ملفات + Breadcrumbs) واختيار متعدد —
-# — المعالجة المتوازية (Parallel Processing) لسرعة خارقة + ETA —
+# ✅ Advanced PDF Tool by eLite Acadimea (Enterprise Edition)
+# — متصفح Google Drive + المعالجة المتوازية (Parallel Processing) —
 # — ذكاء العلامة المائية (تتكيف مع حجم الصفحة طولي/عرضي) —
 # — استئناف ذكي عند الفشل (Checkpoints) + صلاحية روابط مؤقتة —
-# — إدخال ذكي للأسماء (نسخ ولصق بدون قيود الإكسل) وإخفاء الإكسل —
+# — استخراج ذكي للأسماء والإيميلات (Smart Regex) —
+# — إخراج ZIP احترافي (مجلدات بأسماء الطلاب) —
 
 import os
 import re
@@ -47,61 +47,10 @@ from google.auth.transport.requests import Request
 import io
 
 # =========================
-# إعدادات الواجهة والدخول
+# إعدادات الواجهة
 # =========================
 st.set_page_config(page_title="🔐 eLite Acadimea PDF Protector", layout="wide")
 st.title("🔐 نظام الحماية الذكي - eLite Acadimea")
-
-ACCESS_KEY = st.secrets["ACCESS_KEY"]
-code = st.text_input("🔑 أدخل رمز الدخول:", type="password")
-if code != ACCESS_KEY:
-    st.warning("⚠️ رمز الدخول غير صحيح")
-    st.stop()
-
-# =========================
-# رسائل جاهزة + مخصصة
-# =========================
-messages_options = {
-    "مكمل": {"color": "blue", "message": "📘 عزيزي الطالب، هذه الرسالة خاصة بالمكمل وتشمل جميع التعليمات الهامة."},
-    "فيرست": {"color": "orange", "message": "🟠 مرحبًا، هذه مواد الفيرست فقط، نرجو مراجعتها بعناية."},
-    "فيرست + سكند": {"color": "red", "message": "🔴 الملفات التالية تحتوي مواد الفيرست والسكند كاملة."},
-    "سكند": {"color": "green", "message": "✅ هذه الملفات خاصة بالسكند فقط."},
-    "ميد": {"color": "purple", "message": "🟣 مرحبًا، هذه ملفات الميد الخاصة بك."},
-    "فاينل": {"color": "cyan", "message": "🔵 هذه الملفات خاصة بالفينال النهائي."},
-    "كامل المادة": {"color": "pink", "message": "🌸 الملفات التالية تحتوي كامل المادة من البداية للنهاية."},
-    "✏️ كتابة رسالة مخصصة...": {"color": "gray", "message": ""}
-}
-
-selected_option = st.selectbox("📩 اختر رسالة جاهزة:", list(messages_options.keys()))
-selected_color = messages_options[selected_option]["color"]
-default_message = messages_options[selected_option]["message"]
-
-st.markdown(
-    f"""
-    <div style="display:flex;align-items:center;margin-bottom:10px;">
-        <div style="width:20px;height:20px;background:{selected_color};border-radius:50%;margin-right:10px;"></div>
-        <span style="font-size:16px;">الخيار الحالي: <b>{selected_option}</b></span>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-if selected_option == "✏️ كتابة رسالة مخصصة...":
-    custom_message = st.text_area("📝 اكتب رسالتك الخاصة:", placeholder="اكتب رسالة شكر أو تعليمات...")
-else:
-    custom_message = st.text_area("📝 الرسالة المختارة (يمكنك تعديلها):", value=default_message)
-
-st.write("✅ الرسالة النهائية التي سيتم إرسالها:")
-st.info(custom_message)
-
-# =========================
-# الخط العربي (Cairo)
-# =========================
-FONT_PATH = "Cairo-Regular.ttf"
-try:
-    pdfmetrics.registerFont(TTFont("Cairo", FONT_PATH))
-except Exception as e:
-    st.warning(f"⚠️ تعذر تسجيل الخط '{FONT_PATH}'. تأكد من وجود الملف. التفاصيل: {e}")
 
 # =========================
 # أسرار التطبيق (secrets)
@@ -210,7 +159,7 @@ try:
     all_records = sheet.get_all_values()
     if len(all_records) > 1:
         total_files = len(all_records) - 1
-        unique_students = len(set([row[1] for row in all_records[1:]])) # بفرض الإيميل بالعمود الثاني
+        unique_students = len(set([row[1] for row in all_records[1:]])) 
         c1, c2, c3 = st.columns(3)
         c1.metric("📦 إجمالي الملفات المُرسلة", total_files)
         c2.metric("🎓 عدد الطلاب المستفيدين", unique_students)
@@ -220,17 +169,56 @@ except Exception:
 st.markdown("---")
 
 # =========================
-# رفع لوجو اختياري لدمجه في كل صفحة
+# رسائل جاهزة + مخصصة
 # =========================
-logo_file = st.file_uploader("🖼️ اختياري: ارفع لوجو ليظهر على كل الصفحات", type=["png", "jpg", "jpeg"], key="logo")
-logo_reader = None
-logo_bytes = None
-if logo_file:
-    try:
-        logo_bytes = logo_file.read()
-        logo_reader = ImageReader(BytesIO(logo_bytes))
-    except Exception as e:
-        st.warning(f"⚠️ تعذر قراءة اللوجو: {e}")
+messages_options = {
+    "مكمل": {"color": "blue", "message": "📘 عزيزي الطالب، هذه الرسالة خاصة بالمكمل وتشمل جميع التعليمات الهامة."},
+    "فيرست": {"color": "orange", "message": "🟠 مرحبًا، هذه مواد الفيرست فقط، نرجو مراجعتها بعناية."},
+    "فيرست + سكند": {"color": "red", "message": "🔴 الملفات التالية تحتوي مواد الفيرست والسكند كاملة."},
+    "سكند": {"color": "green", "message": "✅ هذه الملفات خاصة بالسكند فقط."},
+    "ميد": {"color": "purple", "message": "🟣 مرحبًا، هذه ملفات الميد الخاصة بك."},
+    "فاينل": {"color": "cyan", "message": "🔵 هذه الملفات خاصة بالفينال النهائي."},
+    "كامل المادة": {"color": "pink", "message": "🌸 الملفات التالية تحتوي كامل المادة من البداية للنهاية."},
+    "✏️ كتابة رسالة مخصصة...": {"color": "gray", "message": ""}
+}
+
+col_msg, col_set = st.columns([2, 1])
+
+with col_msg:
+    selected_option = st.selectbox("📩 اختر رسالة جاهزة:", list(messages_options.keys()))
+    selected_color = messages_options[selected_option]["color"]
+    default_message = messages_options[selected_option]["message"]
+
+    st.markdown(
+        f"""
+        <div style="display:flex;align-items:center;margin-bottom:10px;">
+            <div style="width:20px;height:20px;background:{selected_color};border-radius:50%;margin-right:10px;"></div>
+            <span style="font-size:16px;">الخيار الحالي: <b>{selected_option}</b></span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    if selected_option == "✏️ كتابة رسالة مخصصة...":
+        custom_message = st.text_area("📝 اكتب رسالتك الخاصة:", placeholder="اكتب رسالة شكر أو تعليمات...", height=100)
+    else:
+        custom_message = st.text_area("📝 الرسالة المختارة (يمكنك تعديلها):", value=default_message, height=100)
+
+with col_set:
+    st.markdown("### ⚙️ إعدادات الحماية والإخراج")
+    expiration_days = st.number_input("⏳ أيام صلاحية الرابط في Drive (0 = مفتوح دائم):", min_value=0, value=0)
+    option = st.radio("اختيار طريقة الإخراج:", ["☁️ مشاركة تلقائية + Google Drive رفع إلى", "📦 تحميل ZIP"])
+    allow_download = st.checkbox("✅ السماح بتنزيل الملف من Google Drive", value=False)
+    enable_password = st.checkbox("🔐 حماية الملفات بكلمة مرور (تشفير PDF)", value=True)
+
+# =========================
+# الخط العربي (Cairo)
+# =========================
+FONT_PATH = "Cairo-Regular.ttf"
+try:
+    pdfmetrics.registerFont(TTFont("Cairo", FONT_PATH))
+except Exception as e:
+    st.warning(f"⚠️ تعذر تسجيل الخط '{FONT_PATH}'. تأكد من وجود الملف. التفاصيل: {e}")
 
 # =========================
 # دوال Google Drive (مجلدات + ملفات + تنزيل)
@@ -341,23 +329,25 @@ else:
             st.rerun()
 
     st.markdown("### 🔎 بحث وفلترة")
-    search_text = st.text_input("ابحث بالاسم (اختياري):", value="")
-    kind_filter = st.selectbox("نوع العناصر:", ["All", "PDF", "Images"], index=0)
-    page_size = st.selectbox("عدد النتائج بالصفحة:", [20, 50, 100], index=1)
+    
+    col_a, col_b, col_c = st.columns([2, 1, 1])
+    search_text = col_a.text_input("ابحث بالاسم (اختياري):", value="")
+    kind_filter = col_b.selectbox("نوع العناصر:", ["All", "PDF", "Images"], index=0)
+    page_size = col_c.selectbox("عدد النتائج بالصفحة:", [20, 50, 100], index=1)
 
     if "drive_page_token" not in st.session_state:
         st.session_state.drive_page_token = None
     if "last_page_tokens" not in st.session_state:
         st.session_state.last_page_tokens = []
 
-    col_a, col_b, col_c = st.columns(3)
-    with col_a:
+    c1, c2, c3 = st.columns(3)
+    with c1:
         if st.button("🔄 تحديث النتائج"):
             st.session_state.drive_page_token = None
             st.session_state.last_page_tokens = []
-    with col_b:
+    with c2:
         prev_clicked = st.button("⬅️ السابق", disabled=(len(st.session_state.last_page_tokens) == 0))
-    with col_c:
+    with c3:
         next_clicked = st.button("➡️ التالي")
 
     folders, files, next_token = drive_list_children(
@@ -436,50 +426,44 @@ else:
             st.success(f"تم تجهيز {len(sorted_file_copies)} ملف(ات) من المكتبة.")
 
 # =========================
-# 📋 إدخال الأسماء (الإدخال الذكي وإخفاء الإكسل)
+# 📋 إدخال الأسماء (الاستخراج الذكي)
 # =========================
-st.markdown("## 📋 قائمة الطلاب")
-st.info("💡 اكتب أو انسخ الأسماء والإيميلات هنا. النظام ذكي بما يكفي ليفصل بينها سواء استخدمت الفاصلة، أو التاب، أو الخط |.")
+st.markdown("## 📋 قائمة الطلاب (الإدخال الذكي)")
+st.info("💡 **انسخ والصق مباشرة:** الصق قائمة الطلاب من الواتساب أو ملف نصي كيفما كانت. النظام سيبحث تلقائياً عن الإيميل ويفصل الاسم بكل ذكاء.")
 
-raw_students_data = st.text_area("أدخل الأسماء (مثال: أحمد محمد | ahmed@gmail.com أو أحمد , ahmed@gmail.com):", height=150)
-
-# خيار الإكسل مخفي كخيار جانبي (Expander)
-students_from_excel = []
-with st.expander("📁 خيار جانبي: استيراد من ملف Excel (A: الاسم، B: الإيميل)"):
-    excel_file = st.file_uploader("📄 ارفع ملف Excel", type=["xlsx"])
-    if excel_file:
-        try:
-            df = pd.read_excel(excel_file)
-            students_from_excel = df.iloc[:, :2].dropna().values.tolist()
-        except Exception as e:
-            st.error(f"📛 تعذر قراءة ملف Excel: {e}")
+raw_students_data = st.text_area("أدخل الأسماء والإيميلات هنا:", height=150)
 
 students = []
 if raw_students_data:
     for line in raw_students_data.splitlines():
-        parts = re.split(r'[|,\t]', line)
-        if len(parts) >= 2:
-            name, email = parts[0].strip(), parts[-1].strip()
-            if name and "@" in email: 
+        if not line.strip():
+            continue
+            
+        # البحث عن الإيميل بصيغة Regex
+        email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', line)
+        if email_match:
+            email = email_match.group(0)
+            
+            # استخراج الاسم بإزالة الإيميل وتنظيف الفواصل العشوائية
+            name_raw = line.replace(email, '').strip()
+            
+            # إزالة الرموز الشائعة التي تستخدم كفواصل
+            name = re.sub(r'[|,\t\-\_]+', ' ', name_raw).strip()
+            
+            # إزالة المسافات المتكررة
+            name = re.sub(r'\s+', ' ', name)
+            
+            if name:
                 students.append([name, email])
-
-# دمج القوائم
-students.extend(students_from_excel)
-
-expiration_days = st.number_input("⏳ أيام صلاحية الرابط في Drive (0 = مفتوح دائم):", min_value=0, value=0)
-option = st.radio("اختيار طريقة الإخراج:", ["☁️ رفع إلى Google Drive + مشاركة تلقائية", "📦 تحميل ZIP"])
-allow_download = st.checkbox("✅ السماح بتنزيل الملف من Google Drive", value=False)
-enable_password = st.checkbox("🔐 حماية الملفات بكلمة مرور (تشفير PDF)", value=True)
 
 if students:
     st.markdown("---")
-    st.subheader("👁️‍🗨️ معاينة البيانات")
-    st.dataframe(pd.DataFrame(students, columns=["الاسم", "الإيميل"]))
-    st.markdown("---")
-    st.subheader("📊 عدد الطلاب: " + str(len(students)))
+    st.subheader("👁️‍🗨️ معاينة البيانات المستخرجة بذكاء")
+    st.dataframe(pd.DataFrame(students, columns=["الاسم (المنظف)", "الإيميل (المستخرج)"]))
+    st.success(f"📊 تم التعرف بنجاح على: {len(students)} طالب.")
 
 # =========================
-# أدوات إرسال
+# أدوات إرسال و PDF
 # =========================
 def send_telegram_message(message: str):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -487,7 +471,7 @@ def send_telegram_message(message: str):
     try:
         requests.post(url, data=data, timeout=15)
     except Exception as e:
-        pass # إخفاء الخطأ حتى لا يزعج المستخدم في كل مرة
+        pass
 
 def send_email_to_student(name, email, password, link_block_text, extra_message=""):
     try:
@@ -497,10 +481,18 @@ def send_email_to_student(name, email, password, link_block_text, extra_message=
         msg["Subject"] = "🔐 ملفاتك الجامعية جاهزة - eLite Acadimea"
 
         links_html = link_block_text.replace("\n", "<br>")
-        links_html = re.sub(r"(https?://[^\s<]+)", r'<a href="\1" style="display: inline-block; padding: 5px 10px; margin-top: 5px; background-color: #0056b3; color: white; text-decoration: none; border-radius: 4px; font-size: 14px;">فتح الملف 🔗</a>', links_html)
+        links_html = re.sub(
+            r"(https?://[^\s<]+)", 
+            r'<a href="\1" style="display: inline-block; padding: 5px 10px; margin-top: 5px; background-color: #0056b3; color: white; text-decoration: none; border-radius: 4px; font-size: 14px;">فتح الملف 🔗</a>', 
+            links_html
+        )
 
         if extra_message.strip():
-            extra_html = f'<div style="background-color: #fff3cd; color: #856404; padding: 15px; border-left: 4px solid #ffeeba; margin-top: 20px; border-radius: 4px;"><strong>📩 ملاحظة من الإدارة:</strong><br>{extra_message.strip()}</div>'
+            extra_html = f"""
+            <div style="background-color: #fff3cd; color: #856404; padding: 15px; border-left: 4px solid #ffeeba; margin-top: 20px; border-radius: 4px;">
+                <strong>📩 ملاحظة من الإدارة:</strong><br>{extra_message.strip()}
+            </div>
+            """
         else:
             extra_html = ""
 
@@ -523,19 +515,25 @@ def send_email_to_student(name, email, password, link_block_text, extra_message=
         html_body = f"""
         <div dir="rtl" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; padding: 30px;">
             <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                
                 <div style="background-color: #0056b3; color: white; padding: 25px; text-align: center;">
                     <h2 style="margin: 0; font-size: 26px;">eLite Acadimea 🎓</h2>
                 </div>
+                
                 <div style="padding: 30px;">
                     <p style="font-size: 18px; color: #333;">مرحباً <strong>{name}</strong>،</p>
                     <p style="font-size: 16px; color: #555; line-height: 1.6;">تم تجهيز ملفاتك بنجاح. يرجى العلم أن هذه الملفات محمية بحقوق النشر ومخصصة لك فقط.</p>
+
                     {password_section}
+
                     <h3 style="color: #0056b3; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 30px;">📎 روابط الملفات:</h3>
                     <div style="line-height: 1.8; font-size: 16px; color: #444;">
                         {links_html}
                     </div>
+
                     {extra_html}
                 </div>
+                
                 <div style="background-color: #f8f9fa; padding: 15px; text-align: center; color: #888; font-size: 13px; border-top: 1px solid #eee;">
                     © {datetime.now().year} جميع الحقوق محفوظة - منصة eLite Acadimea
                 </div>
@@ -549,11 +547,8 @@ def send_email_to_student(name, email, password, link_block_text, extra_message=
             server.login(EMAIL_SENDER, EMAIL_PASSWORD)
             server.send_message(msg)
     except Exception as e:
-        pass # إخفاء الخطأ
+        pass
 
-# =========================
-# QR + PDF Utilities
-# =========================
 def generate_qr_code(link: str) -> ImageReader:
     qr = qrcode.make(link)
     output = BytesIO()
@@ -568,16 +563,18 @@ def create_placeholder_pdf(tmp_path, text="Preparing your protected file..."):
     c.showPage()
     c.save()
 
-# تعديل دالة precreate لتأخذ thread_drive_service
 def precreate_drive_pdf(filename: str, email: str, thread_drive_service, exp_days: int):
     temp_placeholder = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     create_placeholder_pdf(temp_placeholder.name)
+    
     file_metadata = {
         "name": filename,
         "parents": [FOLDER_ID],
         "mimeType": "application/pdf",
     }
+    
     media = MediaFileUpload(temp_placeholder.name, mimetype="application/pdf", resumable=False)
+    
     try:
         created = thread_drive_service.files().create(
             body=file_metadata,
@@ -585,14 +582,21 @@ def precreate_drive_pdf(filename: str, email: str, thread_drive_service, exp_day
             fields="id",
             supportsAllDrives=True
         ).execute()
+        
         file_id = created["id"]
         link = f"https://drive.google.com/file/d/{file_id}/view"
 
         if email and re.match(r"[^@]+@[^@]+\.[^@]+", email.strip()):
             try:
-                perm_body = {"type": "user", "role": "reader", "emailAddress": email.strip()}
+                perm_body = {
+                    "type": "user",
+                    "role": "reader",
+                    "emailAddress": email.strip()
+                }
+                
                 if exp_days > 0:
                     perm_body["expirationTime"] = (datetime.utcnow() + timedelta(days=exp_days)).isoformat() + "Z"
+                    
                 thread_drive_service.permissions().create(
                     fileId=file_id,
                     body=perm_body,
@@ -611,7 +615,6 @@ def precreate_drive_pdf(filename: str, email: str, thread_drive_service, exp_day
         except Exception:
             pass
 
-# تعديل دالة finalize لتأخذ thread_drive_service
 def finalize_drive_pdf(file_id: str, final_path: str, allow_download: bool, thread_drive_service) -> str:
     if not file_id:
         return ""
@@ -636,7 +639,7 @@ def finalize_drive_pdf(file_id: str, final_path: str, allow_download: bool, thre
     except HttpError as e:
         return ""
 
-def create_dynamic_watermark_page(name: str, link: str, logo_bytes=None, w=letter[0], h=letter[1]):
+def create_dynamic_watermark_page(name: str, link: str, w=letter[0], h=letter[1]):
     """علامة مائية ذكية تتكيف مع أبعاد الصفحة المرسلة (وورد، باوربوينت، إلخ)"""
     packet = BytesIO()
     c = canvas.Canvas(packet, pagesize=(w, h))
@@ -682,14 +685,6 @@ def create_dynamic_watermark_page(name: str, link: str, logo_bytes=None, w=lette
     except Exception:
         pass
 
-    if logo_bytes:
-        try:
-            logo_reader = ImageReader(BytesIO(logo_bytes))
-            logo_sz = int(min_dim * 0.12)
-            c.drawImage(logo_reader, 20, h - logo_sz - 20, width=logo_sz, height=logo_sz, mask='auto')
-        except Exception:
-            pass
-
     c.save()
     packet.seek(0)
     return PdfReader(packet).pages[0]
@@ -697,6 +692,7 @@ def create_dynamic_watermark_page(name: str, link: str, logo_bytes=None, w=lette
 def apply_pdf_protection(input_path: str, output_path: str, password: str):
     reader = PdfReader(input_path)
     writer = PdfWriter()
+    
     for page in reader.pages:
         writer.add_page(page)
 
@@ -713,9 +709,12 @@ def apply_pdf_protection(input_path: str, output_path: str, password: str):
 # =========================
 # دالة معالجة الطالب (Thread Target)
 # =========================
-def process_single_student_thread(idx, name, email, file_copies, mode, allow_download, enable_password, logo_bytes, temp_dir, exp_days):
-    thread_drive = build("drive", "v3", credentials=creds) if mode == "Drive" else None
-    
+def process_single_student_thread(idx, name, email, file_copies, mode, allow_download, enable_password, temp_dir, exp_days):
+    if mode.startswith("☁️"):
+        thread_drive = build("drive", "v3", credentials=creds)
+    else:
+        thread_drive = None
+        
     safe_name = name.replace(" ", "_").replace("+", "plus")
     
     if enable_password:
@@ -735,7 +734,7 @@ def process_single_student_thread(idx, name, email, file_copies, mode, allow_dow
         file_id = None
         drive_link = "https://pdf.eliteacadimea.com/placeholder"
         
-        if mode == "Drive":
+        if mode.startswith("☁️"):
             file_id, drive_link = precreate_drive_pdf(final_name, email, thread_drive, exp_days)
             if not file_id:
                 continue
@@ -753,7 +752,7 @@ def process_single_student_thread(idx, name, email, file_copies, mode, allow_dow
         for page in reader.pages:
             w = float(page.mediabox.width)
             h = float(page.mediabox.height)
-            watermark_page = create_dynamic_watermark_page(name, drive_link, logo_bytes, w, h)
+            watermark_page = create_dynamic_watermark_page(name, drive_link, w, h)
             page.merge_page(watermark_page)
             writer.add_page(page)
 
@@ -763,11 +762,11 @@ def process_single_student_thread(idx, name, email, file_copies, mode, allow_dow
         apply_pdf_protection(raw_path, protected_path, pdf_password)
         generated_pdfs.append(protected_path)
 
-        if mode == "Drive":
+        if mode.startswith("☁️"):
             final_link = finalize_drive_pdf(file_id, protected_path, allow_download, thread_drive)
             student_links.append(final_link)
 
-    if mode == "Drive" and student_links:
+    if mode.startswith("☁️") and student_links:
         links_msg = "\n".join([
             f"{i+1}. {os.path.basename(fc[0])}\n🔗 {lnk}"
             for i, (fc, lnk) in enumerate(zip(file_copies, student_links))
@@ -782,15 +781,16 @@ def process_single_student_thread(idx, name, email, file_copies, mode, allow_dow
         send_email_to_student(name, email, pdf_password, links_msg, custom_message)
 
     row_data = [name, email, display_password, " | ".join(student_links), datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
-    return row_data, generated_pdfs
+    return row_data, generated_pdfs, safe_name
 
 # =========================
-# زر التشغيل (المعالج المتوازي)
+# زر التشغيل (المعالج المتوازي مع المجلدات)
 # =========================
 CHECKPOINT_FILE = "elite_checkpoint.json"
 
 if sorted_file_copies and students:
     completed_emails = []
+    
     if os.path.exists(CHECKPOINT_FILE):
         with open(CHECKPOINT_FILE, "r") as f:
             completed_emails = json.load(f)
@@ -809,13 +809,11 @@ if sorted_file_copies and students:
             st.stop()
 
         with st.spinner("⏳ جاري تنفيذ العملية بوضع المعالجة المتوازية..."):
-            mode = "Drive" if option.startswith("☁️") else "ZIP"
-            file_copies = sorted_file_copies
             temp_dir = tempfile.mkdtemp()
             password_file_path = os.path.join(temp_dir, "passwords_and_links.csv")
             
             sheet_data_to_append = []
-            all_generated_pdfs = []
+            student_files_map = [] 
             
             progress_bar = st.progress(0)
             status_text = st.empty()
@@ -824,12 +822,12 @@ if sorted_file_copies and students:
             total_students = len(students_to_process)
             start_time = time.time()
             
-            # المعالجة المتوازية
+            # المعالجة المتوازية (Threads)
             with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
                 future_to_student = {
                     executor.submit(
                         process_single_student_thread, 
-                        idx, s[0], s[1], file_copies, mode, allow_download, enable_password, logo_bytes, temp_dir, expiration_days
+                        idx, s[0], s[1], sorted_file_copies, option, allow_download, enable_password, temp_dir, expiration_days
                     ): s for idx, s in enumerate(students_to_process)
                 }
                 
@@ -837,9 +835,10 @@ if sorted_file_copies and students:
                 for future in concurrent.futures.as_completed(future_to_student):
                     student = future_to_student[future]
                     try:
-                        row_data, pdf_paths = future.result()
+                        row_data, pdf_paths, safe_name = future.result()
                         sheet_data_to_append.append(row_data)
-                        all_generated_pdfs.extend(pdf_paths)
+                        
+                        student_files_map.append((safe_name, pdf_paths))
                         
                         completed_emails.append(student[1])
                         with open(CHECKPOINT_FILE, "w") as f:
@@ -859,7 +858,7 @@ if sorted_file_copies and students:
                     status_text.text(f"🔄 جاري المعالجة... إنجاز {completed_count} من {total_students}")
                     eta_text.markdown(f"**⏳ الوقت المتبقي تقريباً:** {timedelta(seconds=eta_secs)}")
 
-            # كتابة ملف הـ CSV
+            # كتابة ملف الروابط والباسوردات للتحميل
             with open(password_file_path, "w", newline="", encoding="utf-8") as pw_file:
                 writer_csv = csv.writer(pw_file)
                 writer_csv.writerow(["Student Name", "Email", "Password", "Drive Links"])
@@ -880,19 +879,26 @@ if sorted_file_copies and students:
             status_text.empty()
             eta_text.empty()
 
-            if mode == "ZIP":
-                zip_path = os.path.join(temp_dir, "protected_students.zip")
+            if option.startswith("📦"):
+                zip_path = os.path.join(temp_dir, "Pro_Students_Files.zip")
                 with ZipFile(zip_path, "w") as zipf:
-                    for fpath in all_generated_pdfs:
-                        zipf.write(fpath, arcname=os.path.basename(fpath))
-                    zipf.write(password_file_path, arcname="passwords_and_links.csv")
+                    # بناء مجلدات داخل الـ ZIP
+                    for student_folder_name, paths in student_files_map:
+                        for fpath in paths:
+                            # القوس التالي يصنع المجلد بداخل الـ ZIP 
+                            zip_internal_path = f"{student_folder_name}/{os.path.basename(fpath)}"
+                            zipf.write(fpath, arcname=zip_internal_path)
+                    
+                    # وضع ملف الإكسل (كلمات السر) في الواجهة الرئيسية للـ ZIP
+                    zipf.write(password_file_path, arcname="All_Passwords_and_Links.csv")
+                
                 with open(zip_path, "rb") as f:
-                    st.download_button("📦 تحميل ZIP مع كلمات السر والروابط", f.read(), file_name="students_files.zip")
+                    st.download_button("📦 تحميل ZIP (مجلدات منفصلة للطلاب)", f.read(), file_name="Pro_Students_Files.zip")
             else:
                 with open(password_file_path, "rb") as f:
                     st.download_button("📄 تحميل ملف كلمات السر والروابط", f.read(), file_name="passwords_and_links.csv")
 
-            st.success("✅ اكتملت العملية بنجاح! تم إرسال الملفات للطلاب، يمكنك الآن تحميل الملفات عبر الزر أعلاه.")
+            st.success("✅ اكتملت العملية بنجاح! تم تجهيز/إرسال الملفات للطلاب، يمكنك الآن تحميل المخرجات عبر الزر أعلاه.")
             st.balloons()
 
 st.markdown("---")
