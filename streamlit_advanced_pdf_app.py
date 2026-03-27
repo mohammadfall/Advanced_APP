@@ -510,7 +510,11 @@ def send_email_to_student(name, email, password, link_block_text, extra_message=
             server.starttls()
             server.login(EMAIL_SENDER, EMAIL_PASSWORD)
             server.send_message(msg)
-    except Exception: pass
+        return True, ""
+    except smtplib.SMTPAuthenticationError:
+        return False, "خطأ في الباسورد الخاص بالإيميل (تأكد من استخدام App Password)"
+    except Exception as e: 
+        return False, str(e)
 
 def generate_qr_code(link: str) -> ImageReader:
     qr = qrcode.make(link)
@@ -591,7 +595,8 @@ def apply_pdf_protection(input_path: str, output_path: str, password: str):
 
     with open(output_path, "wb") as f: writer.write(f)
 
-def process_single_student_thread(idx, name, email, file_copies, mode, allow_download, enable_password, temp_dir, exp_days, wm_op, wm_sz, wm_sp, wm_ang, show_ftr):
+# تمرير custom_msg كمتغير منفصل لضمان استلام الخيوط (Threads) لها بشكل صحيح
+def process_single_student_thread(idx, name, email, file_copies, mode, allow_download, enable_password, temp_dir, exp_days, wm_op, wm_sz, wm_sp, wm_ang, show_ftr, custom_msg):
     thread_drive = build("drive", "v3", credentials=creds) if mode.startswith("☁️") else None
     safe_name = name.replace(" ", "_").replace("+", "plus")
     
@@ -600,6 +605,7 @@ def process_single_student_thread(idx, name, email, file_copies, mode, allow_dow
 
     student_links = []
     generated_pdfs = []
+    email_error_msg = ""
 
     for file_name, file_bytes in file_copies:
         base_filename = os.path.splitext(file_name)[0]
@@ -637,10 +643,14 @@ def process_single_student_thread(idx, name, email, file_copies, mode, allow_dow
         links_msg = "\n".join([f"{i+1}. {os.path.basename(fc[0])}\n🔗 {lnk}" for i, (fc, lnk) in enumerate(zip(file_copies, student_links))])
         msg = f"📥 الملفات الخاصة بـ {name}:\n🔑 الباسورد: {display_password}\n{links_msg}" if enable_password else f"📥 الملفات الخاصة بـ {name}:\n🔓 (بدون باسورد)\n{links_msg}"
         send_telegram_message(msg)
-        send_email_to_student(name, email, pdf_password, links_msg, custom_message)
+        
+        # التقاط حالة الإيميل لإعلامك بها
+        is_sent, err_reason = send_email_to_student(name, email, pdf_password, links_msg, custom_msg)
+        if not is_sent:
+            email_error_msg = err_reason
 
     row_data = [name, email, display_password, " | ".join(student_links), datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
-    return row_data, generated_pdfs, safe_name
+    return row_data, generated_pdfs, safe_name, email_error_msg
 
 # =========================
 # التبويب الرابع: التنفيذ والإخراج (Run Tab)
@@ -679,6 +689,7 @@ with tab_run:
                 
                 sheet_data_to_append = []
                 student_files_map = [] 
+                email_errors = [] # لجمع أخطاء الإيميل وعرضها لك
                 
                 progress_bar = st.progress(0)
                 status_text = st.empty()
@@ -692,7 +703,7 @@ with tab_run:
                         executor.submit(
                             process_single_student_thread, 
                             idx, s[0], s[1], sorted_file_copies, option, allow_download, enable_password, temp_dir, expiration_days,
-                            wm_opacity, wm_size, wm_spacing, wm_angle, show_qr_footer
+                            wm_opacity, wm_size, wm_spacing, wm_angle, show_qr_footer, custom_message
                         ): s for idx, s in enumerate(students_to_process)
                     }
                     
@@ -700,9 +711,12 @@ with tab_run:
                     for future in concurrent.futures.as_completed(future_to_student):
                         student = future_to_student[future]
                         try:
-                            row_data, pdf_paths, safe_name = future.result()
+                            row_data, pdf_paths, safe_name, email_err = future.result()
                             sheet_data_to_append.append(row_data)
                             student_files_map.append((safe_name, pdf_paths))
+                            
+                            if email_err:
+                                email_errors.append(f"❌ لم يتم إرسال الإيميل للطالب {student[0]} ({student[1]}): {email_err}")
                             
                             completed_emails.append(student[1])
                             with open(CHECKPOINT_FILE, "w") as f: json.dump(completed_emails, f)
@@ -725,15 +739,28 @@ with tab_run:
                     writer_csv.writerow(["Student Name", "Email", "Password", "Drive Links"])
                     for row in sheet_data_to_append: writer_csv.writerow(row[:4])
 
+                # 🟢 تحديث Google Sheets بطريقة صحيحة (إدراج في السطر 2 لدفع القديم للأسفل)
                 if sheet_data_to_append:
                     status_text.text("💾 جاري حفظ السجلات في مساحة التخزين السحابي...")
-                    try: sheet.append_rows(sheet_data_to_append)
-                    except Exception as e: st.warning(f"⚠️ فشل إضافة السجل إلى الشيت: {e}")
+                    try: 
+                        # هذا سيقوم بوضع أحدث الأسماء في السطر الثاني دائماً لتجنب مشكلة جداول جوجل
+                        sheet.insert_rows(sheet_data_to_append, 2, value_input_option='USER_ENTERED')
+                    except Exception as e: 
+                        # طريقة احتياطية في حال فشلت الطريقة الأولى
+                        try:
+                            sheet.append_rows(sheet_data_to_append, value_input_option='USER_ENTERED')
+                        except Exception as ex:
+                            st.warning(f"⚠️ فشل إضافة السجل إلى الشيت: {ex}")
                 
                 if os.path.exists(CHECKPOINT_FILE): os.remove(CHECKPOINT_FILE)
 
                 status_text.empty()
                 eta_text.empty()
+
+                if email_errors:
+                    st.error("⚠️ تنبيه: ظهرت مشاكل في إرسال الإيميلات للأسماء التالية:")
+                    for err in email_errors:
+                        st.caption(err)
 
                 if option.startswith("📦"):
                     zip_path = os.path.join(temp_dir, "Pro_Students_Files.zip")
@@ -755,7 +782,8 @@ with tab_run:
 
     # زر رجوع للإعدادات
     st.markdown("<br><hr>", unsafe_allow_html=True)
-    if st.button("➡️ السابق: الإعدادات والتخصيص", use_container_width=True): switch_tab(2)
+    col_back_final, _ = st.columns([1, 1])
+    if col_back_final.button("➡️ السابق: الإعدادات والتخصيص", use_container_width=True): switch_tab(2)
 
 st.markdown("---")
 st.caption("🛡️ تم تطوير هذا النظام بواسطة د. محمد العمري - جميع الحقوق محفوظة لـ eLite Acadimea")
