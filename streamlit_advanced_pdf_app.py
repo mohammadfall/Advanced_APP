@@ -458,7 +458,7 @@ with tab_settings:
     if col_next2.button("🚀 الخطوة الأخيرة: التنفيذ والإخراج ⬅️", use_container_width=True, type="primary"): switch_tab(3)
 
 # =========================
-# دوال التوليد والـ PDF 
+# دوال التوليد والإيميل المنسق
 # =========================
 def send_telegram_message(message: str):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -466,44 +466,99 @@ def send_telegram_message(message: str):
     except Exception: pass
 
 def send_email_to_student(name, email, password, link_block_text, extra_message=""):
+    """
+    دالة إرسال الإيميل مع التنسيق الاحترافي (النسخة الأصلية الممتازة)
+    """
     try:
         msg = MIMEMultipart()
         msg["From"] = EMAIL_SENDER
         msg["To"] = email
         msg["Subject"] = "🔐 ملفاتك الجامعية جاهزة - eLite Acadimea"
 
+        # تنسيق الروابط بشكل أزرار زرقاء أنيقة
         links_html = link_block_text.replace("\n", "<br>")
         links_html = re.sub(
             r"(https?://[^\s<]+)", 
-            r'<a href="\1" style="display: inline-block; padding: 6px 12px; margin-top: 5px; background-color: #0056b3; color: white; text-decoration: none; border-radius: 5px; font-size: 14px; font-weight: bold;">فتح الملف 🔗</a>', 
+            r'<br><a href="\1" style="display: inline-block; padding: 10px 20px; margin: 8px 0; background-color: #0056b3; color: #ffffff; text-decoration: none; border-radius: 5px; font-size: 15px; font-weight: bold;">فتح الملف 🔗</a><br>', 
             links_html
         )
 
-        extra_html = f'<div style="background-color: #fff3cd; color: #856404; padding: 15px; border-left: 4px solid #ffeeba; margin-top: 20px; border-radius: 4px;"><strong>📩 ملاحظة من الإدارة:</strong><br>{extra_message.strip()}</div>' if extra_message.strip() else ""
-
-        if password:
-            password_section = f"""<div style="background-color: #f8eaeb; border-right: 5px solid #d9534f; padding: 15px; margin: 25px 0; border-radius: 4px; text-align: center;">
-                <p style="margin: 0; font-size: 16px; color: #333;">🔑 <strong>كلمة المرور لفتح الملفات:</strong></p>
-                <p style="margin: 10px auto 5px auto; font-size: 24px; color: #d9534f; font-weight: bold; direction: ltr; background: white; padding: 12px; border-radius: 6px; border: 2px dashed #d9534f; display: inline-block; font-family: monospace; -webkit-user-select: all; user-select: all;">{password}</p>
-                <p style="margin: 0; font-size: 12px; color: #888;">(انقر مرتين على الكلمة لتحديدها ونسخها)</p></div>"""
+        # إضافة صندوق الملاحظة إذا كان موجوداً
+        if extra_message.strip():
+            extra_html = f"""
+            <div style="background-color: #fff3cd; color: #856404; padding: 15px; border-right: 4px solid #ffeeba; margin-top: 25px; border-radius: 4px; text-align: right;">
+                <strong style="font-size: 15px;">📩 ملاحظة من الإدارة:</strong><br>
+                <span style="font-size: 14px; line-height: 1.6;">{extra_message.strip()}</span>
+            </div>
+            """
         else:
-            password_section = f"""<div style="background-color: #e2f0e6; border-right: 5px solid #28a745; padding: 15px; margin: 25px 0; border-radius: 4px; text-align: center;">
-                <p style="margin: 0; font-size: 16px; color: #333;">🔓 <strong>حالة الملفات:</strong></p>
-                <p style="margin: 10px auto 0 auto; font-size: 18px; color: #28a745; font-weight: bold;">الملفات مفتوحة ولا تحتاج إلى كلمة مرور</p></div>"""
+            extra_html = ""
 
-        html_body = f"""<div dir="rtl" style="font-family: 'Segoe UI', Tahoma, Geneva, sans-serif; background-color: #f4f7f6; padding: 30px;">
-            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
-                <div style="background-color: #0056b3; color: white; padding: 25px; text-align: center;"><h2 style="margin: 0; font-size: 26px;">eLite Acadimea 🎓</h2></div>
-                <div style="padding: 30px;">
-                    <p style="font-size: 18px; color: #333;">مرحباً <strong>{name}</strong>،</p>
-                    <p style="font-size: 16px; color: #555; line-height: 1.6;">تم تجهيز ملفاتك بنجاح. يرجى العلم أن هذه الملفات محمية بحقوق النشر ومخصصة لك فقط.</p>
-                    {password_section}
-                    <h3 style="color: #0056b3; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 30px;">📎 روابط الملفات:</h3>
-                    <div style="line-height: 1.8; font-size: 16px; color: #444;">{links_html}</div>{extra_html}
+        # صندوق التنبيه الهام جداً (تم إرجاعه بالكامل ليكون مطابقاً للصورة الجيدة)
+        email_warning = f"""
+        <div style="background-color: #ffe8e8; border-right: 4px solid #d9534f; padding: 15px; margin: 20px 0; border-radius: 4px; text-align: right;">
+            <strong style="color: #d9534f; font-size: 15px;">⚠️ هام جداً:</strong><br>
+            <span style="color: #555; font-size: 14px;">لن يفتح معك الملف إلا إذا كنت مسجلاً في متصفحك أو هاتفك بهذا الإيميل حصراً:</span><br>
+            <strong style="color: #0056b3; font-size: 16px; direction: ltr; display: inline-block; margin-top: 5px;">{email}</strong>
+        </div>
+        """
+
+        # صندوق الباسورد المقطع الأحمر
+        if password:
+            password_section = f"""
+            <div style="background-color: #f8eaeb; border-right: 4px solid #d9534f; padding: 20px; margin: 25px 0; border-radius: 6px; text-align: center;">
+                <p style="margin: 0 0 10px 0; font-size: 16px; color: #333;">🔑 <strong>كلمة المرور لفتح الملفات:</strong></p>
+                <div style="font-size: 22px; color: #d9534f; font-weight: bold; direction: ltr; background: #ffffff; padding: 12px 20px; border-radius: 6px; border: 2px dashed #d9534f; display: inline-block; font-family: monospace; letter-spacing: 1px;">{password}</div>
+                <p style="margin: 10px 0 0 0; font-size: 12px; color: #888;">(انقر مرتين على الكلمة لتحديدها ونسخها)</p>
+            </div>
+            """
+        else:
+            password_section = f"""
+            <div style="background-color: #e2f0e6; border-right: 4px solid #28a745; padding: 20px; margin: 25px 0; border-radius: 6px; text-align: center;">
+                <p style="margin: 0; font-size: 16px; color: #333;">🔓 <strong>حالة الملفات:</strong></p>
+                <p style="margin: 10px 0 0 0; font-size: 18px; color: #28a745; font-weight: bold;">الملفات مفتوحة ولا تحتاج إلى كلمة مرور</p>
+            </div>
+            """
+
+        # تجميع الهيكل النهائي كـ HTML متكامل
+        html_body = f"""
+        <!DOCTYPE html>
+        <html dir="rtl" lang="ar">
+        <head>
+            <meta charset="UTF-8">
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #f4f7f6; font-family: Arial, 'Segoe UI', Tahoma, sans-serif;">
+            <div style="padding: 20px;">
+                <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                    
+                    <div style="background-color: #0056b3; padding: 25px; text-align: center;">
+                        <h2 style="margin: 0; color: #ffffff; font-size: 26px; font-weight: bold;">🎓 eLite Acadimea</h2>
+                    </div>
+                    
+                    <div style="padding: 30px; text-align: right;">
+                        <p style="font-size: 18px; color: #333; margin-top: 0;">مرحباً <strong>{name}</strong>،</p>
+                        <p style="font-size: 16px; color: #555; line-height: 1.6;">تم تجهيز ملفاتك بنجاح. يرجى العلم أن هذه الملفات محمية بحقوق النشر ومخصصة لك فقط.</p>
+                        
+                        {email_warning}
+                        
+                        {password_section}
+                        
+                        <h3 style="color: #0056b3; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 35px; font-size: 18px;">📎 روابط الملفات:</h3>
+                        <div style="font-size: 16px; color: #444;">
+                            {links_html}
+                        </div>
+                        
+                        {extra_html}
+                    </div>
+                    
+                    <div style="background-color: #f8f9fa; padding: 15px; text-align: center; color: #888; font-size: 13px; border-top: 1px solid #eee;">
+                        © {datetime.now().year} جميع الحقوق محفوظة - منصة eLite Acadimea
+                    </div>
                 </div>
-                <div style="background-color: #f8f9fa; padding: 15px; text-align: center; color: #888; font-size: 13px; border-top: 1px solid #eee;">
-                    © {datetime.now().year} جميع الحقوق محفوظة - منصة eLite Acadimea
-                </div></div></div>"""
+            </div>
+        </body>
+        </html>
+        """
 
         msg.attach(MIMEText(html_body, "html"))
         with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as server:
@@ -511,8 +566,6 @@ def send_email_to_student(name, email, password, link_block_text, extra_message=
             server.login(EMAIL_SENDER, EMAIL_PASSWORD)
             server.send_message(msg)
         return True, ""
-    except smtplib.SMTPAuthenticationError:
-        return False, "خطأ في الباسورد الخاص بالإيميل (تأكد من استخدام App Password)"
     except Exception as e: 
         return False, str(e)
 
@@ -534,17 +587,27 @@ def precreate_drive_pdf(filename: str, email: str, thread_drive_service, exp_day
         created = thread_drive_service.files().create(body={"name": filename, "parents": [FOLDER_ID], "mimeType": "application/pdf"}, media_body=media, fields="id", supportsAllDrives=True).execute()
         file_id = created["id"]
         link = f"https://drive.google.com/file/d/{file_id}/view"
-        if email and re.match(r"[^@]+@[^@]+\.[^@]+", email.strip()):
-            try:
-                perm_body = {"type": "user", "role": "reader", "emailAddress": email.strip()}
-                if exp_days > 0: perm_body["expirationTime"] = (datetime.utcnow() + timedelta(days=exp_days)).isoformat() + "Z"
-                thread_drive_service.permissions().create(fileId=file_id, body=perm_body, sendNotificationEmail=False, supportsAllDrives=True).execute()
-            except HttpError: pass
         return file_id, link
     except HttpError: return None, ""
     finally:
         try: os.unlink(temp_placeholder.name)
         except Exception: pass
+
+# دالة لمنح الصلاحيات بشكل منفصل (بها محاولات Retries) لتجنب أخطاء جوجل
+def grant_drive_access(drive_service, file_id, email, exp_days, retries=3):
+    if not email or "@" not in email: return False, "إيميل غير صالح"
+    email = email.strip().lower()
+    perm_body = {"type": "user", "role": "reader", "emailAddress": email}
+    if exp_days > 0:
+        perm_body["expirationTime"] = (datetime.utcnow() + timedelta(days=exp_days)).isoformat() + "Z"
+        
+    for attempt in range(retries):
+        try:
+            drive_service.permissions().create(fileId=file_id, body=perm_body, sendNotificationEmail=False, supportsAllDrives=True).execute()
+            return True, ""
+        except Exception as e:
+            time.sleep(1.5)
+    return False, "رفض جوجل منح الصلاحية (قد يكون الحساب غير مدعوم أو تجاوزت الحد المسموح)."
 
 def finalize_drive_pdf(file_id: str, final_path: str, allow_download: bool, thread_drive_service) -> str:
     if not file_id: return ""
@@ -595,7 +658,7 @@ def apply_pdf_protection(input_path: str, output_path: str, password: str):
 
     with open(output_path, "wb") as f: writer.write(f)
 
-# تمرير custom_msg كمتغير منفصل لضمان استلام الخيوط (Threads) لها بشكل صحيح
+# دالة المعالجة المتوازية
 def process_single_student_thread(idx, name, email, file_copies, mode, allow_download, enable_password, temp_dir, exp_days, wm_op, wm_sz, wm_sp, wm_ang, show_ftr, custom_msg):
     thread_drive = build("drive", "v3", credentials=creds) if mode.startswith("☁️") else None
     safe_name = name.replace(" ", "_").replace("+", "plus")
@@ -606,6 +669,7 @@ def process_single_student_thread(idx, name, email, file_copies, mode, allow_dow
     student_links = []
     generated_pdfs = []
     email_error_msg = ""
+    access_error_msg = ""
 
     for file_name, file_bytes in file_copies:
         base_filename = os.path.splitext(file_name)[0]
@@ -637,6 +701,11 @@ def process_single_student_thread(idx, name, email, file_copies, mode, allow_dow
 
         if mode.startswith("☁️"):
             final_link = finalize_drive_pdf(file_id, protected_path, allow_download, thread_drive)
+            
+            is_access_granted, a_err = grant_drive_access(thread_drive, file_id, email, exp_days)
+            if not is_access_granted:
+                access_error_msg += f" {a_err}"
+                
             student_links.append(final_link)
 
     if mode.startswith("☁️") and student_links:
@@ -644,13 +713,11 @@ def process_single_student_thread(idx, name, email, file_copies, mode, allow_dow
         msg = f"📥 الملفات الخاصة بـ {name}:\n🔑 الباسورد: {display_password}\n{links_msg}" if enable_password else f"📥 الملفات الخاصة بـ {name}:\n🔓 (بدون باسورد)\n{links_msg}"
         send_telegram_message(msg)
         
-        # التقاط حالة الإيميل لإعلامك بها
         is_sent, err_reason = send_email_to_student(name, email, pdf_password, links_msg, custom_msg)
-        if not is_sent:
-            email_error_msg = err_reason
+        if not is_sent: email_error_msg = err_reason
 
     row_data = [name, email, display_password, " | ".join(student_links), datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
-    return row_data, generated_pdfs, safe_name, email_error_msg
+    return row_data, generated_pdfs, safe_name, email_error_msg, access_error_msg
 
 # =========================
 # التبويب الرابع: التنفيذ والإخراج (Run Tab)
@@ -689,7 +756,7 @@ with tab_run:
                 
                 sheet_data_to_append = []
                 student_files_map = [] 
-                email_errors = [] # لجمع أخطاء الإيميل وعرضها لك
+                system_errors = []
                 
                 progress_bar = st.progress(0)
                 status_text = st.empty()
@@ -711,12 +778,12 @@ with tab_run:
                     for future in concurrent.futures.as_completed(future_to_student):
                         student = future_to_student[future]
                         try:
-                            row_data, pdf_paths, safe_name, email_err = future.result()
+                            row_data, pdf_paths, safe_name, e_err, a_err = future.result()
                             sheet_data_to_append.append(row_data)
                             student_files_map.append((safe_name, pdf_paths))
                             
-                            if email_err:
-                                email_errors.append(f"❌ لم يتم إرسال الإيميل للطالب {student[0]} ({student[1]}): {email_err}")
+                            if e_err: system_errors.append(f"📧 خطأ إيميل للطالب {student[0]}: {e_err}")
+                            if a_err: system_errors.append(f"🔐 خطأ درايف للطالب {student[0]}: {a_err}")
                             
                             completed_emails.append(student[1])
                             with open(CHECKPOINT_FILE, "w") as f: json.dump(completed_emails, f)
@@ -739,28 +806,22 @@ with tab_run:
                     writer_csv.writerow(["Student Name", "Email", "Password", "Drive Links"])
                     for row in sheet_data_to_append: writer_csv.writerow(row[:4])
 
-                # 🟢 تحديث Google Sheets بطريقة صحيحة (إدراج في السطر 2 لدفع القديم للأسفل)
                 if sheet_data_to_append:
                     status_text.text("💾 جاري حفظ السجلات في مساحة التخزين السحابي...")
                     try: 
-                        # هذا سيقوم بوضع أحدث الأسماء في السطر الثاني دائماً لتجنب مشكلة جداول جوجل
                         sheet.insert_rows(sheet_data_to_append, 2, value_input_option='USER_ENTERED')
-                    except Exception as e: 
-                        # طريقة احتياطية في حال فشلت الطريقة الأولى
-                        try:
-                            sheet.append_rows(sheet_data_to_append, value_input_option='USER_ENTERED')
-                        except Exception as ex:
-                            st.warning(f"⚠️ فشل إضافة السجل إلى الشيت: {ex}")
+                    except Exception as e:
+                        try: sheet.append_rows(sheet_data_to_append, value_input_option='USER_ENTERED')
+                        except Exception as ex: st.warning(f"⚠️ فشل حفظ السجل في الشيت: {ex}")
                 
                 if os.path.exists(CHECKPOINT_FILE): os.remove(CHECKPOINT_FILE)
 
                 status_text.empty()
                 eta_text.empty()
 
-                if email_errors:
-                    st.error("⚠️ تنبيه: ظهرت مشاكل في إرسال الإيميلات للأسماء التالية:")
-                    for err in email_errors:
-                        st.caption(err)
+                if system_errors:
+                    st.error("⚠️ تنبيه: ظهرت بعض الأخطاء أثناء المعالجة (يرجى مراجعتها):")
+                    for err in system_errors: st.caption(err)
 
                 if option.startswith("📦"):
                     zip_path = os.path.join(temp_dir, "Pro_Students_Files.zip")
@@ -777,10 +838,9 @@ with tab_run:
                     with open(password_file_path, "rb") as f:
                         st.download_button("📄 تحميل ملف كلمات السر والروابط (CSV)", f.read(), file_name="passwords_and_links.csv", type="primary", use_container_width=True)
 
-                st.success("🎉 اكتملت العملية بنجاح! تم تجهيز الملفات بإحترافية عالية، يمكنك الآن تحميلها عبر الزر أعلاه.")
+                st.success("🎉 اكتملت العملية بنجاح! تم تجهيز الملفات، يمكنك الآن تحميلها عبر الزر أعلاه.")
                 st.balloons()
 
-    # زر رجوع للإعدادات
     st.markdown("<br><hr>", unsafe_allow_html=True)
     col_back_final, _ = st.columns([1, 1])
     if col_back_final.button("➡️ السابق: الإعدادات والتخصيص", use_container_width=True): switch_tab(2)
