@@ -1,7 +1,7 @@
 # ✅ Advanced PDF Tool by eLite Acadimea (Enterprise Edition)
 # — متصفح Google Drive + المعالجة المتوازية (Parallel Processing) —
 # — ذكاء العلامة المائية (تتكيف مع حجم الصفحة طولي/عرضي) —
-# — حل مشكلة الصلاحيات (Retries) وتنبيه الإيميل المستخدم —
+# — حل جذري لمشكلة Expiration Date لحسابات جوجل المجانية (Smart Fallback) —
 # — حل مشكلة Google Sheets Tables (Smart Row Append) —
 # — إخراج ZIP احترافي (مجلدات بأسماء الطلاب) —
 # — واجهة عمل بنظام الخطوات (Wizard Tabs) —
@@ -668,6 +668,9 @@ def precreate_drive_pdf(filename: str, email: str, thread_drive_service):
         except Exception: 
             pass
 
+# =========================
+# دالة الصلاحيات المحسنة لحل مشكلة الإكسباير في الحسابات العادية
+# =========================
 def grant_drive_access(drive_service, file_id, email, exp_days, retries=5):
     if not email or "@" not in email: 
         return False, "إيميل غير صالح"
@@ -683,6 +686,8 @@ def grant_drive_access(drive_service, file_id, email, exp_days, retries=5):
         perm_body["expirationTime"] = (datetime.utcnow() + timedelta(days=exp_days)).isoformat() + "Z"
         
     last_error = ""
+    warning_msg = ""
+    
     for attempt in range(retries):
         try:
             drive_service.permissions().create(
@@ -691,15 +696,26 @@ def grant_drive_access(drive_service, file_id, email, exp_days, retries=5):
                 sendNotificationEmail=False, 
                 supportsAllDrives=True
             ).execute()
-            return True, ""
+            
+            return True, warning_msg
+            
         except HttpError as e:
             try:
                 error_content = json.loads(e.content)
                 last_error = error_content.get('error', {}).get('message', str(e))
             except:
                 last_error = str(e)
+                
+            # ✅ حل مشكلة حسابات جوجل التي لا تدعم تواريخ الانتهاء
+            if "Expiration dates cannot be set" in last_error or "expiration" in last_error.lower():
+                if "expirationTime" in perm_body:
+                    del perm_body["expirationTime"]
+                    warning_msg = "(تم منح الصلاحية الدائمة لأن حسابك في جوجل لا يدعم خاصية تاريخ الانتهاء)"
+                    continue # العودة للمحاولة فوراً بدون تاريخ انتهاء
+                    
             # نظام الانتظار لتخفيف الضغط على سيرفرات جوجل (Exponential Backoff)
             time.sleep(1.5 + attempt) 
+            
         except Exception as e:
             last_error = str(e)
             time.sleep(1.5)
@@ -785,7 +801,9 @@ def apply_pdf_protection(input_path: str, output_path: str, password: str):
     with open(output_path, "wb") as f: 
         writer.write(f)
 
+# =========================
 # دالة المعالجة المتوازية للطلاب
+# =========================
 def process_single_student_thread(idx, name, email, file_copies, mode, allow_download, enable_password, temp_dir, exp_days, wm_op, wm_sz, wm_sp, wm_ang, show_ftr, custom_msg):
     if mode.startswith("☁️"):
         thread_drive = build("drive", "v3", credentials=creds)
@@ -846,9 +864,12 @@ def process_single_student_thread(idx, name, email, file_copies, mode, allow_dow
         if mode.startswith("☁️"):
             final_link = finalize_drive_pdf(file_id, protected_path, allow_download, thread_drive)
             
+            # منح الصلاحية بالاعتماد على دالتنا الذكية الجديدة
             is_access_granted, a_err = grant_drive_access(thread_drive, file_id, email, exp_days)
             if not is_access_granted: 
                 access_error_msg += f" {a_err}"
+            elif a_err:
+                access_error_msg += f" ⚠️ ملاحظة: {a_err}"
                 
             student_links.append(final_link)
 
@@ -914,6 +935,7 @@ with tab_run:
                 sheet_data_to_append = []
                 student_files_map = [] 
                 system_errors = [] 
+                system_warnings = []
                 
                 progress_bar = st.progress(0)
                 status_text = st.empty()
@@ -942,8 +964,12 @@ with tab_run:
                             
                             if e_err: 
                                 system_errors.append(f"📧 خطأ إيميل للطالب {student[0]}: {e_err}")
+                                
                             if a_err: 
-                                system_errors.append(f"🔐 خطأ درايف للطالب {student[0]}: {a_err}")
+                                if "⚠️" in a_err:
+                                    system_warnings.append(f"ملاحظة درايف للطالب {student[0]}: {a_err}")
+                                else:
+                                    system_errors.append(f"🔐 خطأ درايف للطالب {student[0]}: {a_err}")
                             
                             completed_emails.append(student[1])
                             with open(CHECKPOINT_FILE, "w") as f: 
@@ -987,9 +1013,13 @@ with tab_run:
                 eta_text.empty()
 
                 if system_errors:
-                    st.error("⚠️ تنبيه: ظهرت بعض الأخطاء أثناء المعالجة (يرجى مراجعتها ومعالجتها لاحقاً):")
+                    st.error("⚠️ تنبيه: ظهرت بعض الأخطاء أثناء المعالجة (يرجى مراجعتها):")
                     for err in system_errors: 
                         st.warning(err)
+                        
+                if system_warnings:
+                    for warn in set(system_warnings): # نستخدم set لمنع تكرار الملاحظة لكل طالب
+                        st.info(warn)
 
                 if option.startswith("📦"):
                     # ذكاء التسمية بناءً على عدد الطلاب
