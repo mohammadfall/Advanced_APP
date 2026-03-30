@@ -1,11 +1,10 @@
 # ✅ Advanced PDF Tool by eLite Acadimea (Enterprise Edition)
 # — متصفح Google Drive + المعالجة المتوازية (Parallel Processing) —
 # — ذكاء العلامة المائية (تتكيف مع حجم الصفحة طولي/عرضي) —
-# — حل جذري لمشكلة Expiration Date لحسابات جوجل المجانية (Smart Fallback) —
-# — حل مشكلة Google Sheets Tables (Smart Row Append) —
-# — إخراج ZIP احترافي (مجلدات بأسماء الطلاب) —
+# — استخراج ذكي للأسماء (يقبل الأسماء بدون إيميل للتحميل المباشر) —
+# — خيارات متقدمة لكلمة المرور (PIN عشوائي، موحد، أو بالاسم) —
+# — تحميل PDF مباشر (بدون ZIP) إذا كان ملفاً واحداً فقط —
 # — واجهة عمل بنظام الخطوات (Wizard Tabs) —
-# — (نسخة مفرودة بالكامل للقراءة والتعديل المريح - Unminified Version) —
 
 import os
 import re
@@ -448,15 +447,16 @@ with tab_files:
         switch_tab(1)
 
 # =========================
-# التبويب الثاني: قائمة الطلاب
+# التبويب الثاني: قائمة الطلاب (بدون إجبار الإيميل)
 # =========================
 with tab_students:
-    st.info("💡 **انسخ والصق مباشرة:** الصق قائمة الطلاب من الواتساب أو الإكسل كيفما كانت. النظام سيبحث تلقائياً عن الإيميل ويفصل الاسم بكل ذكاء.")
-    raw_students_data = st.text_area("أدخل الأسماء والإيميلات هنا:", height=200)
+    st.info("💡 **انسخ والصق مباشرة:** أدخل الأسماء هنا. إذا أردت الرفع لـ Drive يجب وجود إيميل، أما للتحميل المباشر (ZIP) فيكفي إدخال الاسم فقط.")
+    raw_students_data = st.text_area("أدخل الأسماء (والإيميلات إن وجدت) هنا:", height=200)
 
     if raw_students_data:
         for line in raw_students_data.splitlines():
-            if not line.strip(): 
+            line = line.strip()
+            if not line: 
                 continue
                 
             email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', line)
@@ -464,17 +464,21 @@ with tab_students:
             if email_match:
                 email = email_match.group(0)
                 name_raw = line.replace(email, '').strip()
-                name = re.sub(r'[|,\t\-\_()]+', ' ', name_raw).strip()
-                name = re.sub(r'\s+', ' ', name)
+            else:
+                email = ""
+                name_raw = line
                 
-                if name:
-                    students.append([name, email])
+            name = re.sub(r'[|,\t\-\_()]+', ' ', name_raw).strip()
+            name = re.sub(r'\s+', ' ', name)
+            
+            if name:
+                students.append([name, email])
 
     if students:
         st.markdown("---")
         st.subheader("👁️‍🗨️ معاينة البيانات المستخرجة")
-        st.dataframe(pd.DataFrame(students, columns=["الاسم (المنظف)", "الإيميل (المستخرج)"]), use_container_width=True)
-        st.success(f"📊 تم التعرف بنجاح على: {len(students)} طالب.")
+        st.dataframe(pd.DataFrame(students, columns=["الاسم (المنظف)", "الإيميل (إن وُجد)"]), use_container_width=True)
+        st.success(f"📊 تم التعرف بنجاح على: {len(students)} اسم.")
 
     st.markdown("<br><hr>", unsafe_allow_html=True)
     col_back1, col_next1 = st.columns(2)
@@ -487,7 +491,7 @@ with tab_students:
 # التبويب الثالث: الإعدادات والتخصيص
 # =========================
 with tab_settings:
-    with st.expander("📩 تخصيص رسائل الإيميل", expanded=True):
+    with st.expander("📩 تخصيص رسائل الإيميل", expanded=False):
         messages_options = {
             "مكمل": {"color": "#1f77b4", "message": "📘 عزيزي الطالب، هذه الرسالة خاصة بالمكمل وتشمل جميع التعليمات الهامة."},
             "فيرست": {"color": "#ff7f0e", "message": "🟠 مرحبًا، هذه مواد الفيرست فقط، نرجو مراجعتها بعناية."},
@@ -509,12 +513,30 @@ with tab_settings:
             custom_message = st.text_area("📝 محتوى الرسالة (يمكنك التعديل عليها):", value=default_message, height=100)
 
     with st.expander("🛡️ خيارات الإخراج والحماية", expanded=True):
-        option = st.radio("كيف تفضل إخراج الملفات النهائية؟", ["☁️ رفع إلى Google Drive + مشاركة تلقائية", "📦 تحميل كملف ZIP (مجلد لكل طالب)"])
-        enable_password = st.checkbox("🔐 حماية ملفات الـ PDF بكلمة مرور (تشفير)", value=True)
+        option = st.radio("كيف تفضل إخراج الملفات النهائية؟", ["☁️ رفع إلى Google Drive + مشاركة تلقائية", "📦 تحميل للملفات (مباشر أو ZIP)"])
         allow_download = st.checkbox("✅ السماح للطلاب بتنزيل الملف (في حال الرفع لـ Drive)", value=False)
         expiration_days = st.number_input("⏳ أيام صلاحية الرابط في Drive (0 = مفتوح دائم):", min_value=0, value=0)
+        
+        st.markdown("---")
+        enable_password = st.checkbox("🔐 حماية ملفات الـ PDF بكلمة مرور (تشفير)", value=True)
+        
+        # خيارات الباسورد المتقدمة تظهر فقط إذا كان التشفير مفعلاً
+        password_mode = "الاسم@elite"
+        custom_unified_password = ""
+        
+        if enable_password:
+            password_mode = st.radio(
+                "اختر شكل كلمة المرور:",
+                [
+                    "الاسم@elite (مثل: MohammadAlomari@elite)",
+                    "أرقام عشوائية PIN (رقم سري من 5 أرقام لكل طالب)",
+                    "كلمة مرور موحدة للجميع (أنت تكتبها)"
+                ]
+            )
+            if "موحدة" in password_mode:
+                custom_unified_password = st.text_input("اكتب كلمة المرور الموحدة هنا:")
 
-    with st.expander("🎛️ تخصيص العلامة المائية", expanded=True):
+    with st.expander("🎛️ تخصيص العلامة المائية", expanded=False):
         col_wm1, col_wm2 = st.columns(2)
         with col_wm1:
             wm_opacity = st.slider("الشفافية (Opacity):", min_value=0.01, max_value=1.0, value=0.12, step=0.01)
@@ -668,9 +690,6 @@ def precreate_drive_pdf(filename: str, email: str, thread_drive_service):
         except Exception: 
             pass
 
-# =========================
-# دالة الصلاحيات المحسنة لحل مشكلة الإكسباير في الحسابات العادية
-# =========================
 def grant_drive_access(drive_service, file_id, email, exp_days, retries=5):
     if not email or "@" not in email: 
         return False, "إيميل غير صالح"
@@ -706,14 +725,12 @@ def grant_drive_access(drive_service, file_id, email, exp_days, retries=5):
             except:
                 last_error = str(e)
                 
-            # ✅ حل مشكلة حسابات جوجل التي لا تدعم تواريخ الانتهاء
             if "Expiration dates cannot be set" in last_error or "expiration" in last_error.lower():
                 if "expirationTime" in perm_body:
                     del perm_body["expirationTime"]
                     warning_msg = "(تم منح الصلاحية الدائمة لأن حسابك في جوجل لا يدعم خاصية تاريخ الانتهاء)"
-                    continue # العودة للمحاولة فوراً بدون تاريخ انتهاء
+                    continue 
                     
-            # نظام الانتظار لتخفيف الضغط على سيرفرات جوجل (Exponential Backoff)
             time.sleep(1.5 + attempt) 
             
         except Exception as e:
@@ -804,7 +821,7 @@ def apply_pdf_protection(input_path: str, output_path: str, password: str):
 # =========================
 # دالة المعالجة المتوازية للطلاب
 # =========================
-def process_single_student_thread(idx, name, email, file_copies, mode, allow_download, enable_password, temp_dir, exp_days, wm_op, wm_sz, wm_sp, wm_ang, show_ftr, custom_msg):
+def process_single_student_thread(idx, name, email, file_copies, mode, allow_download, enable_password, temp_dir, exp_days, wm_op, wm_sz, wm_sp, wm_ang, show_ftr, custom_msg, pwd_mode, unified_pwd):
     if mode.startswith("☁️"):
         thread_drive = build("drive", "v3", credentials=creds)
     else:
@@ -812,8 +829,15 @@ def process_single_student_thread(idx, name, email, file_copies, mode, allow_dow
         
     safe_name = name.replace(" ", "_").replace("+", "plus")
     
+    # معالجة أنواع كلمة المرور
     if enable_password:
-        pdf_password = name.replace(" ", "") + "@elite"
+        if "أرقام عشوائية" in pwd_mode:
+            pdf_password = str(secrets.choice(range(10000, 99999)))
+        elif "موحدة" in pwd_mode:
+            pdf_password = unified_pwd
+        else:
+            pdf_password = name.replace(" ", "") + "@elite"
+            
         display_password = pdf_password
     else:
         pdf_password = ""
@@ -832,6 +856,8 @@ def process_single_student_thread(idx, name, email, file_copies, mode, allow_dow
         drive_link = "https://pdf.eliteacadimea.com/placeholder"
         
         if mode.startswith("☁️"):
+            if not email:
+                continue # لا يمكن الرفع إلى درايف بدون إيميل
             file_id, drive_link = precreate_drive_pdf(final_name, email, thread_drive)
             if not file_id: 
                 continue
@@ -861,10 +887,8 @@ def process_single_student_thread(idx, name, email, file_copies, mode, allow_dow
         apply_pdf_protection(raw_path, protected_path, pdf_password)
         generated_pdfs.append(protected_path)
 
-        if mode.startswith("☁️"):
+        if mode.startswith("☁️") and email:
             final_link = finalize_drive_pdf(file_id, protected_path, allow_download, thread_drive)
-            
-            # منح الصلاحية بالاعتماد على دالتنا الذكية الجديدة
             is_access_granted, a_err = grant_drive_access(thread_drive, file_id, email, exp_days)
             if not is_access_granted: 
                 access_error_msg += f" {a_err}"
@@ -873,7 +897,8 @@ def process_single_student_thread(idx, name, email, file_copies, mode, allow_dow
                 
             student_links.append(final_link)
 
-    if mode.startswith("☁️") and student_links:
+    # إرسال الإشعارات فقط في حال الرفع لدرايف ووجود إيميل
+    if mode.startswith("☁️") and student_links and email:
         links_msg = ""
         for i, (fc, lnk) in enumerate(zip(file_copies, student_links)):
             links_msg += f"{i+1}. {os.path.basename(fc[0])}\n🔗 {lnk}\n"
@@ -886,12 +911,11 @@ def process_single_student_thread(idx, name, email, file_copies, mode, allow_dow
         send_telegram_message(msg)
         
         is_sent, err_reason = send_email_to_student(name, email, pdf_password, links_msg, custom_msg)
-        
         if not is_sent: 
             email_error_msg = err_reason
 
     timestamp_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    row_data = [name, email, display_password, " | ".join(student_links), timestamp_now]
+    row_data = [name, email if email else "غير مسجل", display_password, " | ".join(student_links) if student_links else "تحميل مباشر", timestamp_now]
     
     return row_data, generated_pdfs, safe_name, email_error_msg, access_error_msg
 
@@ -924,6 +948,12 @@ with tab_run:
         students_to_process = [s for s in students if s[1] not in completed_emails]
 
         if st.button("🚀 بدء العملية وتجهيز الملفات", type="primary", use_container_width=True):
+            
+            # التحقق المنطقي قبل البدء
+            if option.startswith("☁️") and not any([s[1] for s in students_to_process]):
+                st.error("❌ لا يمكن الرفع إلى Google Drive لأنك لم تقم بإدخال إيميلات للطلاب!")
+                st.stop()
+                
             if not students_to_process:
                 st.success("✅ جميع الطلاب في هذه القائمة تم إرسال ملفاتهم مسبقاً!")
                 st.stop()
@@ -936,6 +966,7 @@ with tab_run:
                 student_files_map = [] 
                 system_errors = [] 
                 system_warnings = []
+                all_generated_pdfs_flat = [] # لغايات التحميل المباشر للملف الواحد
                 
                 progress_bar = st.progress(0)
                 status_text = st.empty()
@@ -944,13 +975,13 @@ with tab_run:
                 total_students = len(students_to_process)
                 start_time = time.time()
                 
-                # تقليل الضغط على سيرفرات جوجل لتجنب رفض الصلاحيات
+                # تقليل الضغط لتجنب رفض الصلاحيات من جوجل
                 with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
                     future_to_student = {
                         executor.submit(
                             process_single_student_thread, 
                             idx, s[0], s[1], sorted_file_copies, option, allow_download, enable_password, temp_dir, expiration_days,
-                            wm_opacity, wm_size, wm_spacing, wm_angle, show_qr_footer, custom_message
+                            wm_opacity, wm_size, wm_spacing, wm_angle, show_qr_footer, custom_message, password_mode, custom_unified_password
                         ): s for idx, s in enumerate(students_to_process)
                     }
                     
@@ -961,6 +992,7 @@ with tab_run:
                             row_data, pdf_paths, safe_name, e_err, a_err = future.result()
                             sheet_data_to_append.append(row_data)
                             student_files_map.append((safe_name, pdf_paths))
+                            all_generated_pdfs_flat.extend(pdf_paths)
                             
                             if e_err: 
                                 system_errors.append(f"📧 خطأ إيميل للطالب {student[0]}: {e_err}")
@@ -971,9 +1003,10 @@ with tab_run:
                                 else:
                                     system_errors.append(f"🔐 خطأ درايف للطالب {student[0]}: {a_err}")
                             
-                            completed_emails.append(student[1])
-                            with open(CHECKPOINT_FILE, "w") as f: 
-                                json.dump(completed_emails, f)
+                            if student[1]: # احفظ نقطة الحفظ فقط إذا كان يملك إيميل
+                                completed_emails.append(student[1])
+                                with open(CHECKPOINT_FILE, "w") as f: 
+                                    json.dump(completed_emails, f)
                                 
                         except Exception as exc:
                             st.error(f"❌ خطأ فادح مع الطالب {student[0]}: {exc}")
@@ -995,10 +1028,9 @@ with tab_run:
                     for row in sheet_data_to_append: 
                         writer_csv.writerow(row[:4])
 
-                if sheet_data_to_append:
+                if sheet_data_to_append and option.startswith("☁️"):
                     status_text.text("💾 جاري حفظ السجلات في مساحة التخزين السحابي...")
                     try: 
-                        # التحديث الصحيح لجداول Google Sheets الجديدة
                         sheet.insert_rows(sheet_data_to_append, 2, value_input_option='USER_ENTERED')
                     except Exception as e:
                         try: 
@@ -1013,38 +1045,47 @@ with tab_run:
                 eta_text.empty()
 
                 if system_errors:
-                    st.error("⚠️ تنبيه: ظهرت بعض الأخطاء أثناء المعالجة (يرجى مراجعتها):")
+                    st.error("⚠️ تنبيه: ظهرت بعض الأخطاء أثناء المعالجة (يرجى مراجعتها ومعالجتها لاحقاً):")
                     for err in system_errors: 
                         st.warning(err)
                         
                 if system_warnings:
-                    for warn in set(system_warnings): # نستخدم set لمنع تكرار الملاحظة لكل طالب
+                    for warn in set(system_warnings): 
                         st.info(warn)
 
+                # آلية التحميل المباشر للـ PDF الواحد بدون ZIP
                 if option.startswith("📦"):
-                    # ذكاء التسمية بناءً على عدد الطلاب
-                    if len(student_files_map) == 1:
-                        zip_filename = f"{student_files_map[0][0]}_Files.zip"
-                    else:
-                        zip_filename = "eLite_Batch_Files.zip"
+                    if len(all_generated_pdfs_flat) == 1:
+                        single_pdf_path = all_generated_pdfs_flat[0]
+                        single_pdf_name = os.path.basename(single_pdf_path)
                         
-                    zip_path = os.path.join(temp_dir, zip_filename)
-                    
-                    with ZipFile(zip_path, "w") as zipf:
-                        for student_folder_name, paths in student_files_map:
-                            for fpath in paths:
-                                zip_internal_path = f"{student_folder_name}/{os.path.basename(fpath)}"
-                                zipf.write(fpath, arcname=zip_internal_path)
-                        zipf.write(password_file_path, arcname="All_Passwords_and_Links.csv")
-                    
-                    with open(zip_path, "rb") as f:
-                        st.download_button(
-                            label=f"📦 تحميل الملفات ({zip_filename})", 
-                            data=f.read(), 
-                            file_name=zip_filename, 
-                            type="primary", 
-                            use_container_width=True
-                        )
+                        with open(single_pdf_path, "rb") as f:
+                            st.download_button(
+                                label=f"📄 تحميل الملف المباشر ({single_pdf_name})", 
+                                data=f.read(), 
+                                file_name=single_pdf_name, 
+                                type="primary", 
+                                use_container_width=True
+                            )
+                    else:
+                        zip_filename = f"{student_files_map[0][0]}_Files.zip" if len(student_files_map) == 1 else "eLite_Batch_Files.zip"
+                        zip_path = os.path.join(temp_dir, zip_filename)
+                        
+                        with ZipFile(zip_path, "w") as zipf:
+                            for student_folder_name, paths in student_files_map:
+                                for fpath in paths:
+                                    zip_internal_path = f"{student_folder_name}/{os.path.basename(fpath)}"
+                                    zipf.write(fpath, arcname=zip_internal_path)
+                            zipf.write(password_file_path, arcname="All_Passwords_and_Links.csv")
+                        
+                        with open(zip_path, "rb") as f:
+                            st.download_button(
+                                label=f"📦 تحميل الملفات ({zip_filename})", 
+                                data=f.read(), 
+                                file_name=zip_filename, 
+                                type="primary", 
+                                use_container_width=True
+                            )
                 else:
                     with open(password_file_path, "rb") as f:
                         st.download_button(
