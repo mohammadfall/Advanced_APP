@@ -4,6 +4,7 @@
 # — استخراج ذكي للأسماء (يقبل الأسماء بدون إيميل للتحميل المباشر) —
 # — خيارات متقدمة لكلمة المرور (PIN عشوائي، موحد، أو بالاسم) —
 # — تحميل PDF مباشر (بدون ZIP) إذا كان ملفاً واحداً فقط —
+# — إشعارات تيليجرام شاملة لجميع أوضاع الإخراج (Drive & ZIP) لحفظ الباسورد —
 # — واجهة عمل بنظام الخطوات (Wizard Tabs) —
 
 import os
@@ -447,7 +448,7 @@ with tab_files:
         switch_tab(1)
 
 # =========================
-# التبويب الثاني: قائمة الطلاب (بدون إجبار الإيميل)
+# التبويب الثاني: قائمة الطلاب 
 # =========================
 with tab_students:
     st.info("💡 **انسخ والصق مباشرة:** أدخل الأسماء هنا. إذا أردت الرفع لـ Drive يجب وجود إيميل، أما للتحميل المباشر (ZIP) فيكفي إدخال الاسم فقط.")
@@ -520,7 +521,7 @@ with tab_settings:
         st.markdown("---")
         enable_password = st.checkbox("🔐 حماية ملفات الـ PDF بكلمة مرور (تشفير)", value=True)
         
-        # خيارات الباسورد المتقدمة تظهر فقط إذا كان التشفير مفعلاً
+        # خيارات الباسورد المتقدمة 
         password_mode = "الاسم@elite"
         custom_unified_password = ""
         
@@ -857,7 +858,7 @@ def process_single_student_thread(idx, name, email, file_copies, mode, allow_dow
         
         if mode.startswith("☁️"):
             if not email:
-                continue # لا يمكن الرفع إلى درايف بدون إيميل
+                continue 
             file_id, drive_link = precreate_drive_pdf(final_name, email, thread_drive)
             if not file_id: 
                 continue
@@ -897,22 +898,31 @@ def process_single_student_thread(idx, name, email, file_copies, mode, allow_dow
                 
             student_links.append(final_link)
 
-    # إرسال الإشعارات فقط في حال الرفع لدرايف ووجود إيميل
+    # إرسال الإشعارات لتيليجرام دائماً لحفظ الباسوردات، وللإيميل في حال الرفع لدرايف
     if mode.startswith("☁️") and student_links and email:
         links_msg = ""
         for i, (fc, lnk) in enumerate(zip(file_copies, student_links)):
             links_msg += f"{i+1}. {os.path.basename(fc[0])}\n🔗 {lnk}\n"
             
         if enable_password:
-            msg = f"📥 الملفات الخاصة بـ {name}:\n🔑 الباسورد: {display_password}\n{links_msg}" 
+            msg = f"☁️ الملفات الخاصة بـ {name}:\n🔑 الباسورد: {display_password}\n{links_msg}" 
         else:
-            msg = f"📥 الملفات الخاصة بـ {name}:\n🔓 (بدون باسورد)\n{links_msg}"
+            msg = f"☁️ الملفات الخاصة بـ {name}:\n🔓 (بدون باسورد)\n{links_msg}"
             
         send_telegram_message(msg)
         
         is_sent, err_reason = send_email_to_student(name, email, pdf_password, links_msg, custom_msg)
         if not is_sent: 
             email_error_msg = err_reason
+            
+    elif mode.startswith("📦"):
+        # إشعار تيليجرام فقط لحفظ الباسوردات في التحميل المباشر
+        if enable_password:
+            msg = f"📦 تم تجهيز ملفات (تحميل مباشر/ZIP) للطالب {name}:\n🔑 الباسورد: {display_password}" 
+        else:
+            msg = f"📦 تم تجهيز ملفات (تحميل مباشر/ZIP) للطالب {name}:\n🔓 (بدون باسورد)"
+            
+        send_telegram_message(msg)
 
     timestamp_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     row_data = [name, email if email else "غير مسجل", display_password, " | ".join(student_links) if student_links else "تحميل مباشر", timestamp_now]
@@ -966,7 +976,7 @@ with tab_run:
                 student_files_map = [] 
                 system_errors = [] 
                 system_warnings = []
-                all_generated_pdfs_flat = [] # لغايات التحميل المباشر للملف الواحد
+                all_generated_pdfs_flat = [] 
                 
                 progress_bar = st.progress(0)
                 status_text = st.empty()
@@ -975,7 +985,6 @@ with tab_run:
                 total_students = len(students_to_process)
                 start_time = time.time()
                 
-                # تقليل الضغط لتجنب رفض الصلاحيات من جوجل
                 with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
                     future_to_student = {
                         executor.submit(
@@ -1003,7 +1012,7 @@ with tab_run:
                                 else:
                                     system_errors.append(f"🔐 خطأ درايف للطالب {student[0]}: {a_err}")
                             
-                            if student[1]: # احفظ نقطة الحفظ فقط إذا كان يملك إيميل
+                            if student[1]: 
                                 completed_emails.append(student[1])
                                 with open(CHECKPOINT_FILE, "w") as f: 
                                     json.dump(completed_emails, f)
@@ -1053,7 +1062,6 @@ with tab_run:
                     for warn in set(system_warnings): 
                         st.info(warn)
 
-                # آلية التحميل المباشر للـ PDF الواحد بدون ZIP
                 if option.startswith("📦"):
                     if len(all_generated_pdfs_flat) == 1:
                         single_pdf_path = all_generated_pdfs_flat[0]
